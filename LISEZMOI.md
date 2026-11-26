@@ -4,8 +4,8 @@ Effet « pad » par convolution : chaque canal de l'entrée est convolué avec d
 (couleur, densité, peignes accordés sur une note ou un accord, enveloppe par fréquence, LFO sur
 la note, la couleur, la résonance, la densité et des filtres balayés, avec une phase par cible,
 mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 30 s) ; tout son est
-étalé en nappe. Version 1.2.0 (traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
-même fichier, § « 1.2.0 » ; porte rythmique retirée depuis, non publié : § « Après 1.2.0 »).
+étalé en nappe. Version 1.3.0 (traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
+même fichier, § « 1.2.0 » ; de la 1.3 (porte rythmique retirée, LFO étendu) : § « 1.3.0 »).
 C++ avec DPF, interface NanoVG, structure reprise de Tinplate et Brimstone.
 Formats : VST3 et CLAP pour Windows 64 bits ; VST3, CLAP et LV2 pour Linux.
 **Licence : GPL 3 ou ultérieure** (`COPYING`) ; FFT : pffft de Julien Pommier (licence de
@@ -116,7 +116,7 @@ avertissement), figures `doc/figures.py` (`fig_*.pdf` en français, `fig_*_en.pd
 réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des traitements
 `fig_traitements`, mouvement stéréo `fig_stereo`). **README.md** en anglais pour GitHub.
 
-## Vérifications (1.2.0, 2026-11-26 ; installateur : 1.1.0)
+## Vérifications (1.3.0, 2026-11-26)
 - `tests/test_ir.cpp`, deux compilations, tout passe (mesures moyennées sur 8 tirages × 2 canaux) :
   défauts (énergie 1, mêmes bits deux fois, flux indépendants), couleur -6..+6 à 0,73 dB près par
   octave, densité (une impulsion par cellule), peigne et accord (pics 19-24 dB au-dessus des
@@ -185,9 +185,13 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   -DPADIFIER_UI_DEMO_PRESET=8` ; Pearl = `-DPADIFIER_UI_DEMO=304 -DPADIFIER_UI_DEMO_THEME=1
   -DPADIFIER_UI_DEMO_PRESET=11` (Filter sweep, bulle de la phase de LOW CUT ; cases de phase :
   survol 300 + rang de `kPhases`).
-- **Après 1.2.0 (session 74, non publié, non commité)** : porte rythmique retirée (décision de
+- **Release `v1.3.0`** (session 74, 2026-11-26) : porte rythmique retirée (décision de
   l'utilisateur : pas utile) ; LFO sur Resonance, Density, Low cut et High cut, phase par cible
   (crans de 90°, décision de l'utilisateur), préréglage Filter sweep ; détail `AMELIORATIONS.md`
-  § « Après 1.2.0 ». Prochaine release = nouveau numéro.
+  § « 1.3.0 ». Même procédure ; fichiers dans `build/release/1.3.0/`, notes
+  `build/release/notes-1.3.0.md` ; installateur testé sous Wine (préfixe neuf `build/wine_inst130` :
+  VST3, CLAP et manuel identiques, version 1.3.0 au registre, raccourcis, tout retiré), validateur
+  47/47 Linux et Windows sur les binaires publiés. Tout changement livré ensuite demande un
+  nouveau numéro.
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).

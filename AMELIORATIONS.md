@@ -99,7 +99,7 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
 - Vérifié : tests des réponses et du DSP (deux compilations), `./build.sh` complet sans
   avertissement, validateur 47/47 Linux et Windows, manuels FR/EN de 18 pages sans avertissement.
 
-## Après 1.2.0 (session 74, 2026-11-26 ; non publié)
+## 1.3.0 (session 74, 2026-11-26 ; publiée, release `v1.3.0`)
 - **Porte rythmique retirée** (décision de l'utilisateur : pas utile en pratique ; aucun projet
   n'emploie les releases, pas de compatibilité) : paramètres Rhythm, Duty, Attack, Release et
   sortie Tempo supprimés (numéros des suivants décalés), `DISTRHO_PLUGIN_WANT_TIMEPOS` retiré,

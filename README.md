@@ -48,7 +48,7 @@ noise can be coloured, tuned, shaped in time and frequency and moved in stereo.
 
 ## Installation
 
-**Windows**: run `Noise-Padifier-1.2.0-setup.exe` (VST3, optional CLAP and user manuals).
+**Windows**: run `Noise-Padifier-1.3.0-setup.exe` (VST3, optional CLAP and user manuals).
 Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common Files\VST3\` and
 `noise_padifier.clap` to `C:\Program Files\Common Files\CLAP\`.
 
