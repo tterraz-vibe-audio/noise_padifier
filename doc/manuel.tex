@@ -60,7 +60,8 @@ tenu qui monte puis s'éteint selon l'enveloppe (figure~\ref{fig:pad}).
 Le bruit lui-même se façonne : sa couleur (du brun au violet), sa densité (du bruit lisse à un
 nuage de grains), un accord sur une note ou un accord par des filtres en peigne, une enveloppe
 qui dépend de la fréquence (les aigus qui meurent plus tôt, les graves qui s'épanouissent plus
-tard), un LFO, un rythme calé sur le tempo, un mouvement stéréo et une vraie stéréo croisée.
+tard), un LFO (sur la note, la couleur, la résonance, la densité et les filtres, chacun avec sa
+phase), un mouvement stéréo et une vraie stéréo croisée.
 Tous ces traitements agissent \textbf{le long de la réponse} : ils sont calculés une fois, quand
 la réponse est construite, et ne coûtent rien pendant la lecture.
 
@@ -115,8 +116,8 @@ les préréglages de l'utilisateur (section~\ref{sec:fichiers}).
   plus brillant ; affiner avec \ctl{LOW CUT} et \ctl{HIGH CUT}.
 \item Pour une nappe accordée : \ctl{TUNE} sur \ctl{COMB} (une note) ou \ctl{CHORD} (un accord),
   puis \ctl{NOTE}, \ctl{CHORD} et \ctl{RESONANCE}.
-\item Pour du mouvement : \ctl{RHYTHM} (pulsation sur le tempo), \ctl{PAN DEPTH} (balancement
-  stéréo), \ctl{VIBRATO} ou \ctl{LFO TONE}.
+\item Pour du mouvement : \ctl{PAN DEPTH} (balancement stéréo), \ctl{VIBRATO}, ou une
+  profondeur du LFO dans MOTION (\ctl{TONE}, \ctl{HIGH CUT} pour un balayage de filtre\ldots).
 \item Doser avec \ctl{MIX}. Les préréglages montrent chaque traitement.
 \end{enumerate}
 
@@ -131,7 +132,7 @@ est sur OFF) ; il reste utilisable.
 
 \begin{center}
 \includegraphics[width=0.85\textwidth]{capture_pearl.png}\\[2pt]
-\small Thème clair \ctl{PEARL}, préréglage Blooming, bulle d'aide de BLOOM.
+\small Thème clair \ctl{PEARL}, préréglage Filter sweep, bulle d'aide de la phase du LFO sur LOW CUT.
 \end{center}
 
 \subsection{En-tête}
@@ -155,8 +156,8 @@ est sur OFF) ; il reste utilisable.
 
 \subsection{Section 2 : TUNE}
 Le sélecteur \ctl{OFF | COMB | CHORD}, puis \ctl{NOTE}, la liste \ctl{CHORD}, \ctl{RESONANCE} et
-\ctl{VIBRATO}. Au-dessous : la note et sa fréquence (ou les notes de l'accord) et le temps de
-résonance des peignes.
+\ctl{VIBRATO} avec, sous sa valeur, la case de sa phase. Au-dessous : la note et sa fréquence (ou
+les notes de l'accord) et le temps de résonance des peignes.
 
 \subsection{Section 3 : ENVELOPE}
 \ctl{LENGTH}, \ctl{SWELL}, \ctl{DECAY}, \ctl{DAMPING} et \ctl{BLOOM}. Au-dessous : l'instant du pic
@@ -164,10 +165,11 @@ de l'enveloppe (à 125\,Hz et 8\,kHz quand Bloom est actif), le début de la des
 niveau final à 8\,kHz avec Damping), le nombre d'échantillons par trajet et la latence.
 
 \subsection{Section 4 : MOTION}
-Trois rangées : le LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, et sa période), le rythme (la liste \ctl{RHYTHM}
-et la durée d'un pas au tempo de l'hôte, puis trois faders verticaux \ctl{ATTACK}, \ctl{DUTY} et
-\ctl{RELEASE}), la stéréo (\ctl{PAN RATE}, \ctl{PAN DEPTH},
-\ctl{CROSS}).
+En haut, le LFO : \ctl{LFO RATE}, puis les profondeurs \ctl{TONE}, \ctl{RESON},
+\ctl{DENSITY}, \ctl{LOW CUT} et \ctl{HIGH CUT}, chacune avec, sous sa valeur, la case de sa
+phase (0, 90, 180 ou 270°). En bas, la stéréo : \ctl{PAN RATE}, \ctl{PAN DEPTH}, \ctl{CROSS}.
+Les périodes du LFO et du panoramique sont dans les bulles d'aide de \ctl{LFO RATE} et
+\ctl{PAN RATE}.
 
 \subsection{Section 5 : OUTPUT}
 \ctl{MIX}, \ctl{OUTPUT}, \ctl{LOW CUT}, \ctl{HIGH CUT}, \ctl{PRE-DELAY} et \ctl{WIDTH}.
@@ -176,12 +178,12 @@ et la durée d'un pas au tempo de l'hôte, puis trois faders verticaux \ctl{ATTA
 \begin{itemize}
 \item à gauche, la \textbf{carte temps-fréquence} de la réponse : le temps de 0 à Length de gauche
   à droite, la fréquence de 20\,Hz à 20\,kHz de bas en haut, le niveau en couleur (de 0 à
-  $-48$\dB, échelle à gauche). On y voit l'enveloppe, Damping, Bloom, LFO TONE et la porte de
-  RHYTHM ; les traits clairs sont les notes des peignes (harmoniques en COMB, notes de l'accord et
+  $-48$\dB, échelle à gauche). On y voit l'enveloppe, Damping, Bloom, le LFO sur la couleur et sur les
+  filtres ; les traits clairs sont les notes des peignes (harmoniques en COMB, notes de l'accord et
   deux harmoniques en CHORD), avec leur vibrato ; en tirets, le pic de l'enveloppe. La couleur du
   bruit n'y figure pas : elle est sur le spectre ;
-\item à droite, le \textbf{spectre du pad} : couleur du bruit et filtres, en dB, le point le plus
-  haut à 0\dB ;
+\item à droite, le \textbf{spectre du pad} : couleur du bruit et filtres (à leur fréquence
+  centrale quand le LFO les balaie), en dB, le point le plus haut à 0\dB ;
 \item au-dessous, trois vu-mètres de crête : \ctl{IN} (entrée), \ctl{PAD} (pad seul, après les
   filtres et Width, avant le mélange), \ctl{OUT} (sortie), en dBFS ; après une crête, l'affichage
   redescend avec une constante de temps de 0,25\,s.
@@ -192,13 +194,14 @@ et la durée d'un pas au tempo de l'hôte, puis trois faders verticaux \ctl{ATTA
 \item glisser verticalement ; \textsf{Maj} pour un réglage fin ;
 \item molette (\textsf{Maj} : fin) ;
 \item double-clic ou \textsf{Ctrl}+clic : valeur par défaut ;
-\item faders (ATTACK, DUTY, RELEASE) : glisser verticalement, le curseur suit la souris
-  (\textsf{Maj} : fin) ; molette, double-clic et clic droit comme pour les boutons ;
 \item réglages à valeurs entières (NOTE, SEED) : un cran de molette par valeur ;
-\item listes \ctl{CHORD} et \ctl{RHYTHM} : un clic ouvre la liste des valeurs (la valeur courante est
+\item liste \ctl{CHORD} : un clic ouvre la liste des valeurs (la valeur courante est
   marquée d'un point), un clic en choisit une, \textsf{Échap} ou un clic ailleurs la referme ; la
   molette sur la case fermée passe à la valeur suivante ou précédente ;
-\item clic droit : saisie de la valeur au clavier (\textsf{Entrée} valide, \textsf{Échap}
+\item cases de phase (sous VIBRATO et sous les profondeurs du LFO) : un clic passe à la phase
+  suivante, un clic droit à la précédente, la molette aussi ; grisées tant que leur cible ne bouge
+  pas ;
+\item clic droit sur un bouton : saisie de la valeur au clavier (\textsf{Entrée} valide, \textsf{Échap}
   annule ; la virgule est acceptée comme séparateur décimal).
 \end{itemize}
 
@@ -228,12 +231,13 @@ Decay & 0--100\,\% & 75\,\% & part de la longueur prise par la descente \\
 Damping & 0--12\dB/oct & 0 & perte des aigus à la fin \\
 Bloom & $-100$--+100\,\% & 0 & déplacement du pic avec la fréquence \\
 \multicolumn{4}{@{}l}{\textsf{4 MOTION}} \\
-LFO rate & 0,05--10\,Hz & 0,5\,Hz & vitesse du LFO (vibrato, couleur) \\
-LFO tone & 0--6\dB/oct & 0 & profondeur du LFO sur la couleur \\
-Rhythm & off, 1/1--1/32 & off & porte calée sur le tempo (pointées, triolets) \\
-Attack & 0--100\,\% & 10\,\% & montée au début de chaque pas \\
-Duty & 5--100\,\% & 50\,\% & part ouverte de chaque pas \\
-Release & 0--100\,\% & 25\,\% & descente après la part ouverte \\
+LFO rate & 0,05--10\,Hz & 0,5\,Hz & vitesse du LFO, commune à toutes ses cibles \\
+Tone & 0--6\dB/oct & 0 & profondeur du LFO sur la couleur \\
+Reson & 0--100\,\% & 0 & profondeur du LFO sur Resonance \\
+Density & 0--4 octaves & 0 & profondeur du LFO sur Density \\
+Low cut & 0--4 octaves & 0 & profondeur du LFO sur Low cut \\
+High cut & 0--4 octaves & 0 & profondeur du LFO sur High cut \\
+Phases & 0, 90, 180, 270° & 0 & phase du LFO sur chaque cible (et sur Vibrato) \\
 Pan rate & 0,05--10\,Hz & 0,3\,Hz & vitesse du mouvement stéréo \\
 Pan depth & 0--100\,\% & 0 & profondeur du mouvement stéréo \\
 Cross & 0--100\,\% & 0 & vraie stéréo : croisements gauche-droite \\
@@ -317,26 +321,37 @@ longueur sur quatre octaves de part et d'autre de 1\,kHz : positif, les aigus ar
 
 \subsection{Motion}\label{sec:lfo}
 
-\paragraph{Mouvements le long de la réponse.} Le LFO, le rythme et le mouvement stéréo sont
+\paragraph{Mouvements le long de la réponse.} Le LFO et le mouvement stéréo sont
 inscrits dans la réponse : ils commencent à l'attaque de chaque son, et non sur le temps du
 morceau. Sur des notes espacées, chacune fait le même mouvement ; sur un jeu dense, les mouvements
 des notes successives se superposent avec un décalage et s'adoucissent. Une réponse dure au plus
 30\,s : un LFO lent ne fait que quelques cycles par note.
 
-\paragraph{LFO rate, LFO tone.} Vitesse du LFO (sinusoïde partant de 0 à l'attaque), commun au
-vibrato des peignes et à la couleur ; LFO TONE fait osciller la pente du spectre de $\pm$ sa
-valeur : la nappe s'éclaircit et s'assombrit.
+\paragraph{LFO rate.} Vitesse du LFO, une sinusoïde partant de l'attaque de chaque son, commune à
+toutes ses cibles : Vibrato (section TUNE) et les profondeurs de MOTION. Une profondeur nulle
+retire la cible.
 
-\paragraph{Rhythm, Attack, Duty, Release.} Une porte coupe la réponse en pas de la division
-choisie (1/1 à 1/32, pointées, triolets) au tempo de l'hôte (120\,BPM s'il n'en donne pas). Chaque
-pas monte pendant Attack (courbe $\sin^2$), reste ouvert jusqu'à la fin de Duty, puis descend
-pendant Release (courbe $\cos^2$). Attack et Release sont en pourcentage du pas, si bien que la
-forme suit le tempo ; leur durée s'affiche dans la bulle d'aide. Attack fait partie de Duty (il est
-borné par Duty) ; Release vient après et peut déborder sur le pas suivant, la porte prenant alors
-le plus grand des deux niveaux (pas de marche). Chaque front dure au moins 1\,ms.
-Avec Attack et Release courts et un Duty court, chaque son revient en salves séparées, comme des
-échos rythmés ; avec des fronts longs, la nappe respire ou ondule (Duty 100\,\% et Attack non nul :
-une modulation d'amplitude au rythme du pas). Un changement de tempo refait la réponse.
+\paragraph{Tone.} Fait osciller la pente du spectre de $\pm$ sa valeur : la nappe s'éclaircit et
+s'assombrit.
+
+\paragraph{Reson.} Fait osciller Resonance de $\pm$ sa valeur (en points de l'échelle 0--100\,\%,
+bornée à cette échelle) : les peignes résonnent plus ou moins longtemps, la nappe passe d'une
+légère teinte à des notes nettes. Sans effet si TUNE est sur OFF.
+
+\paragraph{Density.} Fait varier Density de $\pm$ sa valeur en octaves (entre 10 et 10\,000
+impulsions par seconde) : les grains du bruit épars se resserrent et s'espacent. Sans effet quand
+Density est à son maximum (bruit lisse).
+
+\paragraph{Low cut, High cut.} Balayent un passe-haut autour de Low cut, un passe-bas autour de
+High cut, de $\pm$ leur valeur en octaves : le grave ou l'aigu s'ouvre et se ferme, comme un
+filtre que l'on tourne. Le filtre balayé, de même pente que le filtre fixe (Butterworth du second
+ordre, 12\dB/octave), est alors inscrit dans la réponse et remplace le filtre fixe de la section
+OUTPUT, qui est coupé ; Low cut ou High cut, même à \og off\fg, en donne le centre.
+
+\paragraph{Phase.} Chaque cible a sa phase : 0, 90, 180 ou 270° d'avance sur le LFO. Deux cibles
+de même phase bougent ensemble (par exemple : plus aigu et plus brillant en même temps) ; à 180°
+d'écart, l'une monte quand l'autre descend (le grave s'ouvre quand l'aigu se ferme) ; à 90°,
+l'une suit l'autre d'un quart de période.
 
 \paragraph{Pan rate, Pan depth.} La nappe se balance entre gauche et droite : à 100\,\%, chaque
 côté s'éteint à son tour (figure~\ref{fig:stereo}).
@@ -397,7 +412,8 @@ $-3$\dB ; à 100\,\%, il ne reste que le pad (départ auxiliaire).
 \paragraph{Low cut, High cut.} Filtres de Butterworth du second ordre (12\dB{} par octave) sur le
 pad seul : Low cut entre 60 et 200\,Hz garde le grave des bruits rose et brun hors du bas du
 mixage ; High cut adoucit le pad et retire le souffle aigu. Boutons logarithmiques ; aux
-extrémités (\og off\fg), le filtre est retiré.
+extrémités (\og off\fg), le filtre est retiré. Quand le LFO balaie l'un d'eux (section MOTION),
+ce filtre fixe est coupé et sa fréquence devient le centre du balayage.
 
 \paragraph{Pre-delay.} Retarde le pad, de 0 à 500\,ms : il démarre après le son sec. Un changement
 passe de l'ancien retard au nouveau par un fondu enchaîné de 30\,ms.
@@ -423,9 +439,9 @@ Short smear & bruit blanc, 0,4\,s, Swell 20\,\%, Decay 80\,\%, Low cut 100\,Hz, 
 Reverse swell & 2\,s, Swell 100\,\%, Decay 0\,\%, Width 120\,\% \\
 Tuned drone & COMB sur A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay 30\,\%, Mix 60\,\% \\
 Chord pad & CHORD min7 sur D3, Resonance 60\,\%, Vibrato 0,15, LFO 0,2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\%, Decay 50\,\% \\
-Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% à 1\,Hz, 4\,s, Swell 10\,\%, Decay 90\,\% \\
 Grain cloud & Colour $-1{,}5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\%, Decay 70\,\% \\
 Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 à 0,4\,Hz, Mix 55\,\%, Decay 65\,\% \\
+Filter sweep & bruit blanc, 5\,s, Swell 30\,\%, Decay 60\,\%, LFO 0,3\,Hz sur High cut 3\,kHz ($\pm$2 oct) et Low cut 150\,Hz ($\pm$1,5 oct, phase 180°), Width 130\,\%, Mix 60\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
 \bottomrule
 \end{tabularx}
@@ -506,17 +522,21 @@ $N = \mathrm{round}(\text{Length} \cdot f_s)$ échantillons, à partir d'un brui
   SplitMix64, écrit dans le greffon : la même graine donne les mêmes échantillons sous Windows et
   sous Linux) ; ou, si Density est sous son maximum, bruit épars : dans chaque intervalle de
   $f_s$/Density échantillons, une impulsion de signe aléatoire à une place aléatoire, d'amplitude
-  $\sqrt{f_s/\text{Density}}$ (puissance 1).
+  $\sqrt{f_s/\text{Density}}$ (puissance 1). Avec le LFO sur Density, chaque intervalle dure
+  $f_s / (\text{Density} \cdot 2^{\,p \cdot \ell(t)})$ échantillons ($p$ la profondeur, densité bornée
+  à 10--10\,000), l'amplitude suivant sa durée.
 \item \textbf{Couleur.} Le spectre (FFT sur la puissance de 2 suivante) est multiplié par
   \[ \left(\max(f, 20\,\text{Hz}) / 1\,\text{kHz}\right)^{\text{Colour}/6{,}02}, \]
   la composante continue mise à zéro : la puissance suit la pente Colour en dB par octave
   (figure~\ref{fig:spectre}).
 \item \textbf{Peignes} (Tune). Pour chaque note (une en COMB, celles de l'accord en CHORD) :
   $y(n) = x(n) + g\, y(n - D)$, $D = f_s / f$ (interpolation linéaire), $f = f_0 \cdot 2^{\,\text{Vibrato}
-  \cdot \sin(2\pi\, \text{LFO rate}\; t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ avec $T_{60}$ le temps de
-  résonance ; les sorties des peignes sont additionnées. Les peignes tournent sur un bruit
-  commencé $\min(T_{60}, 5\,\text{s})$ avant $t = 0$, pour résonner régulièrement dès le début.
-\item \textbf{Enveloppe.} Sans Damping, Bloom ni LFO tone, l'enveloppe $e(t)$ est appliquée dans le
+  \cdot \ell(t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ avec $T_{60}$ le temps de
+  résonance de Resonance $+$ Reson $\cdot\, \ell(t)$ (bornée à 0--100\,\% ; $g$ recalculé tous les
+  16 échantillons quand le LFO le fait varier) ; les sorties des peignes sont additionnées. Les
+  peignes tournent sur un bruit commencé $\min(T_{60}, 5\,\text{s})$ avant $t = 0$ ($T_{60}$ le plus
+  long), pour résonner régulièrement dès le début.
+\item \textbf{Enveloppe.} Sans Damping, Bloom ni LFO sur la couleur ou les filtres, l'enveloppe $e(t)$ est appliquée dans le
   temps : montée $\sin^2$ jusqu'à $T_a$ = Swell $\cdot$ Length, tenue à 1 jusqu'au début de la
   descente $T_f = \max(L\,(1 - \text{Decay}), T_a)$, puis droite en dB jusqu'à $-60$\dB{} en $L$.
   Sinon, elle dépend de la fréquence et est appliquée par transformée de Fourier à court terme
@@ -525,19 +545,19 @@ $N = \mathrm{round}(\text{Length} \cdot f_s)$ échantillons, à partir d'un brui
   \frac{L}{2} \cdot u(f)$, $u(f) = \log_2(f / 1\,\text{kHz})/4$ borné à $[-1, 1]$, la descente à
   partir de $\max(L\,(1 - \text{Decay}), T_a(f))$, une perte supplémentaire croissant du pic à
   $\text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$\dB{} en $L$, et le facteur de
-  couleur du LFO $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6{,}02}$.
+  couleur du LFO $(\max(f, 20) / 1000)^{\,\text{Tone} \cdot \ell(t)/6{,}02}$ ; avec le LFO sur les
+  filtres, le module des filtres de Butterworth du second ordre $1/\sqrt{1 + (f_l/f)^4}$ et
+  $1/\sqrt{1 + (f/f_h)^4}$, $f_l = \text{Low cut} \cdot 2^{\,p \cdot \ell(t)}$,
+  $f_h = \text{High cut} \cdot 2^{\,p \cdot \ell(t)}$.
   Puis, dans les deux cas, le fondu $\cos^2$ des dernières $\min(20\,\text{ms}, L/10)$.
-\item \textbf{Rythme.} Porte de période $T$ = (durée de la division) $\times\, 60$ / tempo ;
-  chaque pas $k$, à partir de $kT$ : montée $\sin^2$ pendant $\min(\max(\text{Attack}\cdot T,
-  1\,\text{ms}), \text{Duty}\cdot T)$, palier jusqu'à $\text{Duty}\cdot T$, descente $\cos^2$ pendant
-  $\max(\text{Release}\cdot T, 1\,\text{ms})$ ; la porte est le plus grand des niveaux du pas en cours
-  et des descentes des pas précédents. Avec Duty 100\,\% et Attack nul, elle reste ouverte.
 \item \textbf{Normalisation.} Énergie 1 : $\sum_n h(n)^2 = 1$.
 \end{enumerate}
 Ensuite, la sortie $o$ est faite du trajet direct $\times \cos(c\,\pi/4)$ et du trajet croisé
 $\times \sin(c\,\pi/4)$, $c$ = Cross : une entrée aux canaux indépendants garde son niveau. Enfin,
 le mouvement stéréo multiplie la sortie gauche par $\sqrt{2} \cos a$ et la droite par $\sqrt{2}
 \sin a$, $a = \frac{\pi}{4}(1 + \text{Pan depth} \cdot \sin(2\pi\, \text{Pan rate}\; t))$.
+Partout, $\ell(t) = \sin(2\pi\, \text{LFO rate}\; t + \varphi)$, $\varphi$ la phase de la cible
+(0, $\pi/2$, $\pi$ ou $3\pi/2$).
 
 Pour un signal d'entrée à large bande et peu corrélé dans le temps, le pad garde ainsi le niveau
 efficace de l'entrée, quels que soient les réglages. Une note isolée, elle, est étalée : sa crête
@@ -579,7 +599,7 @@ Low cut 80\,Hz et High cut 8\,kHz.}
 \includegraphics[width=\textwidth]{fig_traitements.pdf}
 \caption{Cartes temps-fréquence de réponses du greffon (bruit blanc) : Damping et Bloom (les aigus
 arrivent tôt et meurent vite), accord avec vibrato (les harmoniques des quatre notes ondulent),
-porte rythmique, bruit épars (impulsions isolées).}
+LFO sur la couleur (la nappe s'éclaircit et s'assombrit), bruit épars (impulsions isolées).}
 \label{fig:traitements}
 \end{figure}
 
@@ -665,8 +685,8 @@ changement.
 
 \subsection{Changement de réponse}\label{sec:changement}
 
-Les réglages des sections SOURCE, TUNE, ENVELOPE et MOTION définissent la réponse : en changer
-un oblige à la refaire, de même qu'un changement du tempo de l'hôte quand RHYTHM est actif. Un
+Les réglages des sections SOURCE, TUNE, ENVELOPE et MOTION définissent la réponse, ainsi que Low
+cut et High cut quand le LFO les balaie : en changer un oblige à la refaire. Un
 réglage sans effet avec les autres (NOTE quand TUNE est sur OFF, par exemple) ne la refait pas.
 Ce travail est fait dans un fil du greffon, jamais dans le traitement audio, qui continue avec
 l'ancienne réponse. Quand la nouvelle est prête, elle est prise au début d'un bloc de l'étage 2.
@@ -689,7 +709,9 @@ du fondu.
 
 \paragraph{Filtres.} Low cut et High cut sont des filtres de Butterworth du second ordre (formules
 de Robert Bristow-Johnson), en double précision ; leur fréquence est limitée à 0,45\,$f_s$. Au
-neutre, leurs coefficients sont ceux de l'identité : la sortie est alors exactement l'entrée.
+neutre, leurs coefficients sont ceux de l'identité : la sortie est alors exactement l'entrée. Un
+filtre balayé par le LFO est dans la réponse : le filtre fixe passe alors au neutre (en 20\,ms,
+dès le réglage, tandis que la nouvelle réponse arrive après sa construction).
 
 \paragraph{Width.} Sur le pad : $m = (p_L + p_R)/2$, $s = (p_L - p_R)/2 \cdot$ Width,
 $p_L' = m + s$, $p_R' = m - s$.
@@ -735,8 +757,8 @@ calcul et rend à l'hôte son propre état en sortie.
   gagne une queue dense, sans l'espace d'une réverbération.
 \item[Montées.] Reverse swell : chaque attaque monte pendant 2\,s puis s'arrête net. Avec un
   départ placé quelques temps avant, la montée précède le son.
-\item[Rythme.] Pulse gate : la nappe pulse en croches au tempo ; DUTY, ATTACK et RELEASE courts
-  pour des échos rythmés et nets, fronts longs pour une respiration.
+\item[Balayage.] Filter sweep : l'aigu s'ouvre et se ferme lentement pendant que le grave fait
+  l'inverse (phase 180°). Une phase de 90° sur TONE ou RESON ajoute un mouvement décalé.
 \item[Réalisme.] DAMPING 3 à 6\dB/oct rend la queue plus naturelle ; BLOOM négatif donne une
   nappe qui se réchauffe en s'installant.
 \item[Grave.] Les bruits rose et brun donnent beaucoup de grave : Low cut 60 à 150\,Hz, surtout en
@@ -766,11 +788,18 @@ calcul et rend à l'hôte son propre état en sortie.
   des paramètres : \texttt{colour}, \texttt{length}, \texttt{swell}, \texttt{decay},
   \texttt{seed}, \texttt{density}, \texttt{tune}, \texttt{note}, \texttt{chord},
   \texttt{resonance}, \texttt{damping}, \texttt{bloom}, \texttt{lforate}, \texttt{lfopitch},
-  \texttt{lfotone}, \texttt{rhythm}, \texttt{attack}, \texttt{duty}, \texttt{release}, \texttt{panrate}, \texttt{pandepth},
+  \texttt{lfotone}, \texttt{lforesonance}, \texttt{lfodensity}, \texttt{lfolowcut},
+  \texttt{lfohighcut}, \texttt{phasepitch}, \texttt{phasetone}, \texttt{phaseresonance},
+  \texttt{phasedensity}, \texttt{phaselowcut}, \texttt{phasehighcut} (0 à 3 : 0 à 270°),
+  \texttt{panrate}, \texttt{pandepth},
   \texttt{cross}, \texttt{predelay}, \texttt{lowcut}, \texttt{highcut}, \texttt{width},
   \texttt{mix}, \texttt{output}), nombres avec un point décimal quelle que soit la langue du
   système. Une clé absente prend sa valeur par défaut, une valeur hors bornes est ramenée dans les
   bornes, une ligne inconnue est ignorée. Copier le fichier suffit à partager un préréglage.
+\item[Depuis la 1.2.] La porte rythmique (Rhythm, Attack, Duty, Release) a été retirée : un
+  projet ou un préréglage qui l'employait garde ses autres réglages, sans la porte. Le LFO a de
+  nouvelles cibles et une phase par cible, à zéro par défaut : le son d'un réglage de la 1.2 ne
+  change pas.
 \item[Depuis la 1.1.] Decay, qui était le niveau final en dB, est devenu la part de la longueur
   prise par la descente : une valeur enregistrée en 1.1 (de $-60$ à 0) est lue comme 0\,\%, une
   nappe tenue jusqu'au bout ; à régler de nouveau.
@@ -787,7 +816,7 @@ calcul et rend à l'hôte son propre état en sortie.
 \item Un changement des réglages de la réponse arrive avec un léger retard (le temps de la refaire,
   jusqu'à 2,7\,s dans le pire cas à 192\,kHz, puis au plus 0,7\,s jusqu'au fondu) ; en rendu hors ligne plus rapide que le temps réel,
   une automatisation de ces réglages peut donc tomber un peu plus tard qu'à la lecture.
-\item Les mouvements (LFO, rythme, stéréo) partent de l'attaque de chaque son, pas du temps du
+\item Les mouvements (LFO, stéréo) partent de l'attaque de chaque son, pas du temps du
   morceau.
 \item La convolution ne crée pas de fréquence : TUNE fait ressortir ce que la source contient près
   des notes, il ne transpose rien.

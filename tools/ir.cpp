@@ -7,8 +7,10 @@
  *   ./build/ir SR [symbol=value ...] > ir.f32
  *
  * Settings: symbols of the parameters (colour, length, swell, decay, seed, density, tune, note,
- * chord, resonance, damping, bloom, lforate, lfopitch, lfotone, rhythm, duty, panrate, pandepth,
- * cross, attack, release) and tempo; the others keep their defaults.
+ * chord, resonance, damping, bloom, lforate, lfopitch, lfotone, panrate, pandepth, cross, lowcut,
+ * highcut, lforesonance, lfodensity, lfolowcut, lfohighcut, phasepitch, phasetone, phaseresonance,
+ * phasedensity, phaselowcut, phasehighcut); the others keep their defaults.  Low cut and High cut
+ * only act on the response through their LFO.
  * Output: raw 32-bit floats, interleaved L->L, R->R, R->L, L->R (the last two 0 without Cross).
  *
  * Copyright (C) 2026 Padifier authors
@@ -27,9 +29,12 @@ static const struct { const char* key; int param; } kKeys[] = {
     { "seed", kParamSeed }, { "density", kParamDensity }, { "tune", kParamTune }, { "note", kParamNote },
     { "chord", kParamChord }, { "resonance", kParamResonance }, { "damping", kParamDamping },
     { "bloom", kParamBloom }, { "lforate", kParamLfoRate }, { "lfopitch", kParamLfoPitch },
-    { "lfotone", kParamLfoTone }, { "rhythm", kParamRhythm }, { "duty", kParamDuty },
-    { "panrate", kParamPanRate }, { "pandepth", kParamPanDepth }, { "cross", kParamCross },
-    { "attack", kParamAttack }, { "release", kParamRelease },
+    { "lfotone", kParamLfoTone }, { "panrate", kParamPanRate }, { "pandepth", kParamPanDepth },
+    { "cross", kParamCross }, { "lowcut", kParamLowCut }, { "highcut", kParamHighCut },
+    { "lforesonance", kParamLfoResonance }, { "lfodensity", kParamLfoDensity }, { "lfolowcut", kParamLfoLowCut },
+    { "lfohighcut", kParamLfoHighCut }, { "phasepitch", kParamPhasePitch }, { "phasetone", kParamPhaseTone },
+    { "phaseresonance", kParamPhaseResonance }, { "phasedensity", kParamPhaseDensity },
+    { "phaselowcut", kParamPhaseLowCut }, { "phasehighcut", kParamPhaseHighCut },
 };
 
 int main(int argc, char** argv)
@@ -42,7 +47,6 @@ int main(int argc, char** argv)
     float p[kParamFirstOutput];
     for (int i = 0; i < kParamFirstOutput; ++i)
         p[i] = kPadifierRanges[i].def;
-    double tempo = kDefaultTempo;
     for (int a = 2; a < argc; ++a)
     {
         const char* const eq = std::strchr(argv[a], '=');
@@ -50,11 +54,6 @@ int main(int argc, char** argv)
         if (eq != nullptr)
         {
             const std::string key(argv[a], static_cast<size_t>(eq - argv[a]));
-            if (key == "tempo")
-            {
-                tempo = std::atof(eq + 1);
-                known = true;
-            }
             for (const auto& k : kKeys)
                 if (key == k.key)
                 {
@@ -68,7 +67,7 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-    const PadifierIR::Settings s = PadifierIR::fromParams(p, std::atof(argv[1]), tempo);
+    const PadifierIR::Settings s = PadifierIR::fromParams(p, std::atof(argv[1]));
     const PadifierIR::Response r = PadifierIR::generate(s);
     std::vector<float> out(4 * static_cast<size_t>(r.length), 0.0f);
     const std::vector<float>* h[4] = { &r.h[0][0], &r.h[1][1], &r.h[1][0], &r.h[0][1] };

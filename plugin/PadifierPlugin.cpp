@@ -16,8 +16,8 @@
  *   out = wet x sin(pi/2 mix) + dry x cos(pi/2 mix) (dry delayed by the latency)
  *   -> output gain -> bypass crossfade (to the delayed dry signal: same latency).
  *
- * A change of a setting of the response (isIRParam), or of the tempo of the host while the
- * rhythm is on, rebuilds the response in a thread of the plugin (never in the audio thread);
+ * A change of a setting of the response (isIRParam) rebuilds the response in a thread of the
+ * plugin (never in the audio thread);
  * the new response is crossfaded in by the convolver.  activate() builds it at once: rendering
  * starts with the right response.  Mix, width, filters and output go to their new values in
  * 20 ms; a change of pre-delay crossfades from the old delay to the new one in 30 ms.
@@ -216,7 +216,7 @@ protected:
     const char* getLabel() const override { return "NoisePadifier"; }
     const char* getDescription() const override
     {
-        return "Convolution with shaped noise (colour, tuning, envelope, rhythm, motion): turns any sound into a pad.";
+        return "Convolution with shaped noise (colour, tuning, envelope, motion): turns any sound into a pad.";
     }
     const char* getMaker() const override { return "Padifier"; }
     const char* getLicense() const override { return "GPL-3.0-or-later"; }
@@ -262,12 +262,6 @@ protected:
         case kParamMeterIn:  output(p, "Input level", "meter_in", "dB"); break;
         case kParamMeterWet: output(p, "Pad level", "meter_wet", "dB"); break;
         case kParamMeterOut: output(p, "Output level", "meter_out", "dB"); break;
-        case kParamTempo:
-            output(p, "Tempo", "tempo", "BPM");
-            p.ranges.min = kPadifierRanges[kParamTempo].min;
-            p.ranges.max = kPadifierRanges[kParamTempo].max;
-            p.ranges.def = kPadifierRanges[kParamTempo].def;
-            break;
         case kParamDensity:
             set(p, "Density", "density", "/s");
             p.hints |= kParameterIsLogarithmic;
@@ -298,16 +292,6 @@ protected:
             break;
         case kParamLfoPitch:  set(p, "LFO pitch", "lfopitch", "st"); break;
         case kParamLfoTone:   set(p, "LFO tone", "lfotone", "dB/oct"); break;
-        case kParamRhythm:
-        {
-            set(p, "Rhythm", "rhythm", "");
-            const char* names[kDivisionCount];
-            for (int i = 0; i < kDivisionCount; ++i)
-                names[i] = kDivisions[i].name;
-            enumeration(p, names, kDivisionCount);
-            break;
-        }
-        case kParamDuty:      set(p, "Duty", "duty", "%"); break;
         case kParamPanRate:
             set(p, "Pan rate", "panrate", "Hz");
             p.hints |= kParameterIsLogarithmic;
@@ -315,8 +299,27 @@ protected:
         case kParamPanDepth:  set(p, "Pan depth", "pandepth", "%"); break;
         case kParamCross:     set(p, "Cross", "cross", "%"); break;
         case kParamPredelay:  set(p, "Pre-delay", "predelay", "ms"); break;
-        case kParamAttack:    set(p, "Attack", "attack", "%"); break;
-        case kParamRelease:   set(p, "Release", "release", "%"); break;
+        case kParamLfoResonance: set(p, "LFO resonance", "lforesonance", "%"); break;
+        case kParamLfoDensity:   set(p, "LFO density", "lfodensity", "oct"); break;
+        case kParamLfoLowCut:    set(p, "LFO low cut", "lfolowcut", "oct"); break;
+        case kParamLfoHighCut:   set(p, "LFO high cut", "lfohighcut", "oct"); break;
+        case kParamPhasePitch:
+        case kParamPhaseTone:
+        case kParamPhaseResonance:
+        case kParamPhaseDensity:
+        case kParamPhaseLowCut:
+        case kParamPhaseHighCut:
+        {
+            static const char* const names[kLfoPhaseTargets][2] = {
+                { "LFO pitch phase", "phasepitch" }, { "LFO tone phase", "phasetone" },
+                { "LFO resonance phase", "phaseresonance" }, { "LFO density phase", "phasedensity" },
+                { "LFO low cut phase", "phaselowcut" }, { "LFO high cut phase", "phasehighcut" },
+            };
+            const int k = static_cast<int>(index) - kParamPhasePitch;
+            set(p, names[k][0], names[k][1], "deg");
+            enumeration(p, kPhaseNames, kPhaseCount);
+            break;
+        }
         }
     }
 
@@ -404,7 +407,6 @@ protected:
         if (frames == 0)
             return;
         setTargets(true);
-        readTempo();
 
         float peakIn = 0.0f, peakWet = 0.0f, peakOut = 0.0f;
         float wet[2][kChunk], dry[2][kChunk];
@@ -494,24 +496,6 @@ private:
         p.enumValues.values = v;
     }
 
-    // tempo of the host (the last one known when it gives none): a change rebuilds the response
-    // while the rhythm is on
-    void readTempo()
-    {
-        const TimePosition& tp = getTimePosition();
-        if (tp.bbt.valid && tp.bbt.beatsPerMinute > 0.0)
-        {
-            const float bpm = static_cast<float>(std::fmin(std::fmax(tp.bbt.beatsPerMinute, 20.0), 300.0));
-            if (bpm != fParams[kParamTempo])
-            {
-                fParams[kParamTempo] = bpm;
-                fTempo.store(bpm, std::memory_order_relaxed);
-                if (PadifierLaw::choice(fParams[kParamRhythm], kDivisionCount) > 0)
-                    fIRRequest.fetch_add(1, std::memory_order_release);
-            }
-        }
-    }
-
     // pre-delay of the wet signal: integer delay; a change crossfades from the old delay to the
     // new one in 30 ms, the next change waits for the end of the crossfade
     void preDelay(float* const w[2], const int n)
@@ -576,7 +560,7 @@ private:
     // the response of the current parameters, used at once (fBuildMutex held, not real-time)
     void buildNow()
     {
-        fBuilt = PadifierIR::fromParams(fParams, fRate, fTempo.load(std::memory_order_relaxed));
+        fBuilt = PadifierIR::fromParams(fParams, fRate);
         fBuiltRequest = fIRRequest.load(std::memory_order_acquire);
         delete fEngine.offer(nullptr);   // a response built before is outdated
         fEngine.setNow(build(fBuilt));
@@ -609,7 +593,7 @@ private:
                     float p[kParamFirstOutput];
                     for (int i = 0; i < kParamFirstOutput; ++i)
                         p[i] = fIRParams[i].load(std::memory_order_relaxed);
-                    const PadifierIR::Settings s = PadifierIR::fromParams(p, fRate, fTempo.load(std::memory_order_relaxed));
+                    const PadifierIR::Settings s = PadifierIR::fromParams(p, fRate);
                     if (!(s == fBuilt))
                     {
                         fBuilt = s;
@@ -631,9 +615,13 @@ private:
         fWidth.set(fParams[kParamWidth] * 0.01f, n);
         fGain.set(fParams[kParamOutput] == 0.0f ? 1.0f : dbToGain(fParams[kParamOutput]), n);
         fBypass.set(fParams[kParamBypass] > 0.5f ? 1.0f : 0.0f, ramp ? static_cast<int>(0.01 * sr) : 0);
-        fLowCut.set(fParams[kParamLowCut], sr, n);
-        fHighCut.set(fParams[kParamHighCut], sr, n);
+        fLowCut.set(lowCutHz(), sr, n);
+        fHighCut.set(highCutHz(), sr, n);
     }
+
+    // fixed filters of the pad: off while the LFO sweeps them inside the response
+    float lowCutHz() const { return lowCutInResponse(fParams) ? kLowCutOff : fParams[kParamLowCut]; }
+    float highCutHz() const { return highCutInResponse(fParams) ? kHighCutOff : fParams[kParamHighCut]; }
 
     void resetState()
     {
@@ -642,8 +630,8 @@ private:
         fWidth.reset(0.0f);
         fGain.reset(0.0f);
         fBypass.reset(0.0f);
-        fLowCut.reset(fParams[kParamLowCut], getSampleRate());
-        fHighCut.reset(fParams[kParamHighCut], getSampleRate());
+        fLowCut.reset(lowCutHz(), getSampleRate());
+        fHighCut.reset(highCutHz(), getSampleRate());
         setTargets(false);
         fMeterIn = fMeterWet = fMeterOut = 0.0f;
         for (int c = 0; c < 2; ++c)
@@ -659,7 +647,6 @@ private:
 
     // the response: parameters for the thread, requests counted by the audio side
     std::atomic<float> fIRParams[kParamFirstOutput];   // all the inputs (those of the response used)
-    std::atomic<float> fTempo { kDefaultTempo };        // tempo of the host, BPM
     std::atomic<unsigned> fIRRequest { 0 };
     std::mutex fBuildMutex;        // held while a response is built or the buffers change
     unsigned fBuiltRequest = 0;    // under fBuildMutex

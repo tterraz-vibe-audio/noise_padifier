@@ -10,15 +10,17 @@
  * 1. source w: Gaussian noise (Box-Muller on SplitMix64 seeded by (seed, k): the same samples
  *    on every computer), or sparse "velvet" noise when Density is below its maximum: one
  *    impulse of random sign at a random place in each period fs / density, scaled to unit
- *    power;
+ *    power (with LFO density: cells of fs / (density x 2^(depth x lfo(t))) samples, within
+ *    10 .. 10000 impulses / s);
  * 2. colour: spectrum (FFT over the next power of two, circular) multiplied by
  *    (max(f, 20 Hz) / 1 kHz)^(colour / 6.0206): colour dB per octave of power, DC removed
  *    (-3: pink, 0: white, unchanged);
  * 3. tune: combs y(n) = x(n) + g y(n - D(n)) on the note (comb) or on each note of the chord
- *    (chord, summed), D = fs / f(n), f(n) = note x 2^(LFO pitch x sin(2 pi LFO rate t) / 12),
- *    g = 10^(-3 D / (fs T60)), T60 = ring time of Resonance; the combs run over a lead-in of
- *    min(T60, 5 s) of noise before t = 0, so that they ring steadily from the start;
- * 4. envelope.  Without damping, bloom or LFO on the tone: e(t) in the time domain,
+ *    (chord, summed), D = fs / f(n), f(n) = note x 2^(LFO pitch x lfo(t) / 12),
+ *    g = 10^(-3 D / (fs T60)), T60 = ring time of Resonance (+ LFO resonance x lfo(t), within
+ *    0 .. 100 %; g updated every 16 samples while an LFO moves it); the combs run over a lead-in
+ *    of min(largest T60, 5 s) of noise before t = 0, so that they ring steadily from the start;
+ * 4. envelope.  Without damping, bloom or LFO on the tone or the filters: e(t) in the time domain,
  *      rise   sin^2(pi/2 t / Ta), Ta = swell x length,
  *      hold   1 from Ta to the start of the fall Tf = max(length (1 - decay), Ta),
  *      fall   10^(-60 / 20 x (t - Tf) / (length - Tf)) (straight line in dB down to -60 dB).
@@ -28,18 +30,19 @@
  *      [-1, 1] (bloom > 0: the highs peak later), the fall from max(length (1 - decay), Ta(f)),
  *      and an extra loss growing from the peak to damping x max(0, log2(f / 250 Hz)) dB at the
  *      end (the highs die sooner),
- *      times (max(f, 20 Hz) / 1 kHz)^(LFO tone x sin(2 pi LFO rate t) / 6.0206);
+ *      times (max(f, 20 Hz) / 1 kHz)^(LFO tone x lfo(t) / 6.0206),
+ *      times the magnitude of 2nd-order Butterworth filters swept by the LFO: high-pass
+ *      1 / sqrt(1 + (fl / f)^4), fl = Low cut x 2^(depth x lfo(t)), low-pass
+ *      1 / sqrt(1 + (f / fh)^4), fh = High cut x 2^(depth x lfo(t)) (the fixed filters of the
+ *      pad are then off: PadifierPlugin.cpp);
  *    then, in both cases, the fade cos^2 over the last min(20 ms, length / 10);
- * 5. rhythm: gate of period T = (beats of the division) x 60 / tempo; each step k from kT:
- *    rise sin^2 over Attack (a fraction of T, at least 1 ms, at most Duty), held until Duty,
- *    fall cos^2 over Release (at least 1 ms) after Duty; the gate is the largest of the current
- *    step and the falls of the previous ones (Duty 100 % with no attack: always open);
- * 6. unit energy (sum of h^2 = 1).
+ * 5. unit energy (sum of h^2 = 1).
  * Then the output o (0 left, 1 right) is made of the direct stream o x cos(c pi / 4) and the
  * cross stream x sin(c pi / 4), c = Cross: an input with uncorrelated channels keeps its level.
  * The streams are computed in parallel threads (never in the audio thread).
  * Last, stereo motion: output o multiplied by sqrt(2) cos (left) or sin (right) of
  * pi/4 + depth pi/4 sin(2 pi pan rate t).
+ * LFO: lfo(t) = sin(2 pi LFO rate t + phase of the target), phase 0, 90, 180 or 270 degrees.
  */
 #ifndef PADIFIER_NOISE_IR_HPP_INCLUDED
 #define PADIFIER_NOISE_IR_HPP_INCLUDED
@@ -74,16 +77,22 @@ struct Settings {
     double lfoRate = 0.5;    // Hz
     double lfoPitch = 0.0;   // semitones
     double lfoTone = 0.0;    // dB / octave
-    int rhythm = 0;          // index in kDivisions, 0 off
-    double duty = 0.5;       // fraction
-    double attack = 0.1;     // fraction of the step
-    double release = 0.25;   // fraction of the step
-    double tempo = kDefaultTempo;   // BPM
+    double lfoResonance = 0.0; // % of the Resonance scale
+    double lfoDensity = 0.0; // octaves
+    double lfoLowCut = 0.0;  // octaves
+    double lfoHighCut = 0.0; // octaves
+    double lowCut = kLowCutOff;    // Hz, centre of the swept high-pass (with its LFO only)
+    double highCut = kHighCutOff;  // Hz, centre of the swept low-pass (with its LFO only)
+    int phase[6] = { 0, 0, 0, 0, 0, 0 };   // per LfoTarget, quarter turns
     double panRate = 0.3;    // Hz
     double panDepth = 0.0;   // 0 .. 1
     double cross = 0.0;      // 0 .. 1
     double fs = 48000.0;
 };
+
+// targets of the LFO, in the order of their phase parameters
+enum LfoTarget { kLfoPitch = 0, kLfoTone, kLfoResonance, kLfoDensity, kLfoLowCut, kLfoHighCut, kLfoTargets };
+static_assert(kLfoTargets == kLfoPhaseTargets, "one phase parameter per target of the LFO");
 
 static inline double clampf(const double v, const double a, const double b) { return std::fmin(std::fmax(v, a), b); }
 
@@ -93,7 +102,7 @@ static inline double param(const float* const p, const int i)
 }
 
 // params: values of all the inputs (kParamFirstOutput)
-static inline Settings fromParams(const float* const p, const double fs, const double tempo = kDefaultTempo)
+static inline Settings fromParams(const float* const p, const double fs)
 {
     Settings s;
     s.colour = param(p, kParamColour);
@@ -111,11 +120,14 @@ static inline Settings fromParams(const float* const p, const double fs, const d
     s.lfoRate = param(p, kParamLfoRate);
     s.lfoPitch = param(p, kParamLfoPitch);
     s.lfoTone = param(p, kParamLfoTone);
-    s.rhythm = PadifierLaw::choice(p[kParamRhythm], kDivisionCount);
-    s.duty = param(p, kParamDuty) * 0.01;
-    s.attack = param(p, kParamAttack) * 0.01;
-    s.release = param(p, kParamRelease) * 0.01;
-    s.tempo = s.rhythm > 0 ? clampf(tempo, 20.0, 300.0) : kDefaultTempo;   // no rebuild for the tempo when off
+    s.lfoResonance = param(p, kParamLfoResonance);
+    s.lfoDensity = param(p, kParamLfoDensity);
+    s.lfoLowCut = param(p, kParamLfoLowCut);
+    s.lfoHighCut = param(p, kParamLfoHighCut);
+    s.lowCut = param(p, kParamLowCut);
+    s.highCut = param(p, kParamHighCut);
+    for (int k = 0; k < kLfoTargets; ++k)
+        s.phase[k] = PadifierLaw::choice(p[kParamPhasePitch + k], kPhaseCount);
     s.panRate = param(p, kParamPanRate);
     s.panDepth = param(p, kParamPanDepth) * 0.01;
     s.cross = param(p, kParamCross) * 0.01;
@@ -128,17 +140,26 @@ static inline Settings fromParams(const float* const p, const double fs, const d
         s.chord = d.chord;
         s.resonance = d.resonance;
         s.lfoPitch = d.lfoPitch;
+        s.lfoResonance = d.lfoResonance;
     }
     else if (s.tune == 1)
         s.chord = d.chord;
-    if (s.lfoPitch == 0.0 && s.lfoTone == 0.0)
-        s.lfoRate = d.lfoRate;
-    if (s.rhythm == 0)
+    if (s.density >= kDensitySmooth)
+        s.lfoDensity = d.lfoDensity;
+    if (s.lfoLowCut == 0.0)
+        s.lowCut = d.lowCut;
+    if (s.lfoHighCut == 0.0)
+        s.highCut = d.highCut;
+    const double depth[kLfoTargets] = { s.lfoPitch, s.lfoTone, s.lfoResonance, s.lfoDensity, s.lfoLowCut, s.lfoHighCut };
+    bool lfoOn = false;
+    for (int k = 0; k < kLfoTargets; ++k)
     {
-        s.duty = d.duty;
-        s.attack = d.attack;
-        s.release = d.release;
+        if (depth[k] == 0.0)
+            s.phase[k] = 0;
+        lfoOn = lfoOn || depth[k] != 0.0;
     }
+    if (!lfoOn)
+        s.lfoRate = d.lfoRate;
     if (s.panDepth == 0.0)
         s.panRate = d.panRate;
     return s;
@@ -149,9 +170,10 @@ static inline bool operator==(const Settings& a, const Settings& b)
     return a.colour == b.colour && a.length == b.length && a.swell == b.swell && a.decay == b.decay
         && a.seed == b.seed && a.density == b.density && a.tune == b.tune && a.note == b.note && a.chord == b.chord
         && a.resonance == b.resonance && a.damping == b.damping && a.bloom == b.bloom && a.lfoRate == b.lfoRate
-        && a.lfoPitch == b.lfoPitch && a.lfoTone == b.lfoTone && a.rhythm == b.rhythm && a.duty == b.duty
-        && a.attack == b.attack && a.release == b.release
-        && a.tempo == b.tempo && a.panRate == b.panRate && a.panDepth == b.panDepth && a.cross == b.cross
+        && a.lfoPitch == b.lfoPitch && a.lfoTone == b.lfoTone && a.lfoResonance == b.lfoResonance
+        && a.lfoDensity == b.lfoDensity && a.lfoLowCut == b.lfoLowCut && a.lfoHighCut == b.lfoHighCut
+        && a.lowCut == b.lowCut && a.highCut == b.highCut
+        && std::equal(a.phase, a.phase + kLfoTargets, b.phase) && a.panRate == b.panRate && a.panDepth == b.panDepth && a.cross == b.cross
         && a.fs == b.fs;
 }
 
@@ -162,13 +184,64 @@ static inline int lengthSamples(const Settings& s)
 
 static inline bool spectralEnvelope(const Settings& s)
 {
-    return s.damping != 0.0 || s.bloom != 0.0 || s.lfoTone != 0.0;
+    return s.damping != 0.0 || s.bloom != 0.0 || s.lfoTone != 0.0 || s.lfoLowCut != 0.0 || s.lfoHighCut != 0.0;
 }
 
 // ------------------------------------------------------------------------------------------------
 // Laws along the response, shared with the interface (drawing) and the tests
 
-static inline double lfo(const Settings& s, const double t) { return std::sin(2.0 * M_PI * s.lfoRate * t); }
+// the LFO of a target (its phase in quarter turns; phase 0: exactly sin(2 pi rate t))
+static inline double lfo(const Settings& s, const double t, const int target)
+{
+    return std::sin(2.0 * M_PI * s.lfoRate * t + s.phase[target] * (0.5 * M_PI));
+}
+
+// cut-off frequencies of the filters swept by the LFO at time t, Hz (0: no filter)
+static inline void sweptCutoffs(const Settings& s, const double t, double& fl, double& fh)
+{
+    fl = s.lfoLowCut != 0.0 ? s.lowCut * std::exp2(s.lfoLowCut * lfo(s, t, kLfoLowCut)) : 0.0;
+    fh = s.lfoHighCut != 0.0 ? s.highCut * std::exp2(s.lfoHighCut * lfo(s, t, kLfoHighCut)) : 0.0;
+}
+
+// magnitudes of the 2nd-order Butterworth high-pass at fl and low-pass at fh (0: none) at f
+static inline double butterworthGain(const double f, const double fl, const double fh)
+{
+    double g = 1.0;
+    if (fl > 0.0)
+    {
+        const double r = fl / std::fmax(f, 1e-3);
+        g /= std::sqrt(1.0 + r * r * r * r);
+    }
+    if (fh > 0.0)
+    {
+        const double r = f / fh;
+        g /= std::sqrt(1.0 + r * r * r * r);
+    }
+    return g;
+}
+
+// gain of the filters swept by the LFO at frequency f, time t (1 without them)
+static inline double sweptFilters(const Settings& s, const double f, const double t)
+{
+    double fl, fh;
+    sweptCutoffs(s, t, fl, fh);
+    return butterworthGain(f, fl, fh);
+}
+
+// ring time of the combs at time t (Resonance and its LFO), s
+static inline double ringAt(const Settings& s, const double t)
+{
+    const double p = s.lfoResonance != 0.0 ? clampf(s.resonance + s.lfoResonance * lfo(s, t, kLfoResonance), 0.0, 100.0)
+                                           : s.resonance;
+    return PadifierLaw::ringSeconds(static_cast<float>(p));
+}
+
+// density of the velvet noise at time t (Density and its LFO), impulses / s
+static inline double densityAt(const Settings& s, const double t)
+{
+    return clampf(s.density * std::exp2(s.lfoDensity * lfo(s, t, kLfoDensity)), kPadifierRanges[kParamDensity].min,
+                  kDensitySmooth);
+}
 
 static const double kFloorDb = -60.0;   // level at the end of the fall
 
@@ -234,52 +307,13 @@ static inline double envelope(const Settings& s, const double t)
     return envelopeLaw(s, s.swell * s.length, 0.0, t) * endFade(s, t);
 }
 
-// gain of frequency f at time t: envelope, damping, bloom, LFO on the tone (no fade, no gate)
+// gain of frequency f at time t: envelope, damping, bloom, LFO on the tone, swept filters (no fade)
 static inline double spectralGain(const Settings& s, const double f, const double t)
 {
     double g = envelopeLaw(s, peakTime(s, f), dampingDb(s, f), t);
     if (s.lfoTone != 0.0)
-        g *= std::pow(std::fmax(f, 20.0) / 1000.0, s.lfoTone * lfo(s, t) / kDbPerOctave);
-    return g;
-}
-
-// rhythm gate at time t, 0 .. 1
-// one step of the gate, tau s after its start (period T)
-static inline double gateStep(const Settings& s, const double period, const double tau)
-{
-    const double open = s.duty * period;
-    const double rise = std::fmin(std::fmax(s.attack * period, 0.001), open);
-    const double fall = std::fmax(s.release * period, 0.001);
-    if (tau < 0.0)
-        return 0.0;
-    if (tau < rise)
-    {
-        const double r = std::sin(0.5 * M_PI * tau / rise);
-        return r * r;
-    }
-    if (tau < open)
-        return 1.0;
-    if (tau < open + fall)
-    {
-        const double c = std::cos(0.5 * M_PI * (tau - open) / fall);
-        return c * c;
-    }
-    return 0.0;
-}
-
-// rhythm gate at time t, 0 .. 1
-static inline double gate(const Settings& s, const double t)
-{
-    if (s.rhythm <= 0 || (s.duty >= 1.0 && s.attack <= 0.0))
-        return 1.0;
-    const double period = kDivisions[s.rhythm].beats * 60.0 / s.tempo;
-    const double tt = std::fmax(t, 0.0);
-    const double k = std::floor(tt / period);
-    // the current step and the falls of the two previous ones (a fall lasts at most T + 1 ms)
-    double g = 0.0;
-    for (int j = 0; j < 3 && k - j >= 0.0; ++j)
-        g = std::fmax(g, gateStep(s, period, tt - (k - j) * period));
-    return g;
+        g *= std::pow(std::fmax(f, 20.0) / 1000.0, s.lfoTone * lfo(s, t, kLfoTone) / kDbPerOctave);
+    return g * sweptFilters(s, f, t);
 }
 
 // stereo motion: gain of output o (0 left, 1 right) at time t
@@ -354,8 +388,8 @@ struct Fft {
     void backward() { pffft_transform_ordered(setup, buf, buf, work, PFFFT_BACKWARD); }
 };
 
-// 1. source: n samples of unit power for stream k
-static inline Signal source(const Settings& s, const int k, const int n)
+// 1. source: n samples of unit power for stream k, the first `lead` before t = 0
+static inline Signal source(const Settings& s, const int k, const int n, const int lead)
 {
     Signal w(static_cast<size_t>(n), 0.0);
     Random rng(static_cast<uint64_t>(s.seed) * 0x100000001B3ull + static_cast<uint64_t>(k) + 1u);
@@ -367,6 +401,20 @@ static inline Signal source(const Settings& s, const int k, const int n)
             w[i] = static_cast<float>(r * std::cos(a));
             if (i + 1 < n)
                 w[i + 1] = static_cast<float>(r * std::sin(a));
+        }
+        return w;
+    }
+    if (s.lfoDensity != 0.0)
+    {
+        // velvet noise, cells of fs / density(t) samples (power 1 in each)
+        for (double start = 0.0; start < n;)
+        {
+            const double td = s.fs / densityAt(s, (start - lead) / s.fs);
+            const long pos = static_cast<long>(start + rng.uniform() * td * (1.0 - 1e-12));
+            const double sign = rng.uniform() < 0.5 ? -1.0 : 1.0;
+            if (pos < n)
+                w[static_cast<size_t>(pos)] = static_cast<float>(sign * std::sqrt(td));
+            start += td;
         }
         return w;
     }
@@ -391,6 +439,7 @@ struct Tables {
     int nf = 0;                       // FFT size of the colour
     std::vector<float> colourGain;    // per bin of nf
     std::vector<double> pitch;        // LFO factor of the frequency of the combs, per sample
+    std::vector<double> ring;         // ln(1000) / (fs T60) per block of 16 samples (LFO resonance)
     int W = 0, hop = 0, frames = 0;   // short-time transform
     std::vector<double> window;       // sqrt of the periodic Hann window
     std::vector<float> spectral;      // gains, frames x (W / 2 + 1)
@@ -401,7 +450,8 @@ static inline Tables makeTables(const Settings& s)
     Tables t;
     t.n = lengthSamples(s);
     t.lead = s.tune > 0
-        ? static_cast<int>(std::ceil(std::fmin(PadifierLaw::ringSeconds(static_cast<float>(s.resonance)), 5.0) * s.fs))
+        ? static_cast<int>(std::ceil(std::fmin(PadifierLaw::ringSeconds(static_cast<float>(
+              std::fmin(s.resonance + s.lfoResonance, 100.0))), 5.0) * s.fs))
         : 0;
     const int total = t.n + t.lead;
     if (s.colour != 0.0)
@@ -416,7 +466,13 @@ static inline Tables makeTables(const Settings& s)
     {
         t.pitch.resize(static_cast<size_t>(total));
         for (int i = 0; i < total; ++i)
-            t.pitch[i] = std::exp2(s.lfoPitch * lfo(s, (i - t.lead) / s.fs) / 12.0);
+            t.pitch[i] = std::exp2(s.lfoPitch * lfo(s, (i - t.lead) / s.fs, kLfoPitch) / 12.0);
+    }
+    if (s.tune > 0 && s.lfoResonance != 0.0)
+    {
+        t.ring.resize(static_cast<size_t>((total + 15) / 16));
+        for (size_t b = 0; b < t.ring.size(); ++b)
+            t.ring[b] = 6.907755278982137 / (s.fs * ringAt(s, (static_cast<double>(16 * b) - t.lead) / s.fs));
     }
     if (spectralEnvelope(s))
     {
@@ -445,7 +501,11 @@ static inline Tables makeTables(const Settings& s)
         for (int j = 0; j < t.frames; ++j)
         {
             const double tc = (-t.W + j * t.hop + 0.5 * t.W) / s.fs;
-            const double tone = s.lfoTone != 0.0 ? s.lfoTone * lfo(s, tc) / kDbPerOctave : 0.0;
+            const double tone = s.lfoTone != 0.0 ? s.lfoTone * lfo(s, tc, kLfoTone) / kDbPerOctave : 0.0;
+            const bool swept = s.lfoLowCut != 0.0 || s.lfoHighCut != 0.0;
+            double fl = 0.0, fh = 0.0;
+            if (swept)
+                sweptCutoffs(s, tc, fl, fh);
             float* const g = &t.spectral[static_cast<size_t>(j) * bins];
             for (int k = 0; k < bins; ++k)
             {
@@ -461,6 +521,8 @@ static inline Tables makeTables(const Settings& s)
                     v = std::exp(extra[k] * (tc - ta[k]) + (tc > tf[k] ? fall[k] * (tc - tf[k]) : 0.0));
                 if (tone != 0.0)
                     v *= std::exp(tone * lnf[k]);
+                if (swept && v != 0.0)
+                    v *= butterworthGain(k * s.fs / t.W, fl, fh);
                 g[k] = static_cast<float>(v);
             }
         }
@@ -497,7 +559,7 @@ static inline Signal combs(const Settings& s, const Tables& t, const Signal& x)
     const std::vector<double> f0 = notes(s);
     const int n = static_cast<int>(x.size());
     const double c = 6.907755278982137 / (s.fs * PadifierLaw::ringSeconds(static_cast<float>(s.resonance)));   // ln(1000)
-    const bool lfoOn = !t.pitch.empty();
+    const bool lfoOn = !t.pitch.empty(), ringOn = !t.ring.empty();
     Signal y(static_cast<size_t>(n), 0.0);
     for (const double f : f0)
     {
@@ -505,15 +567,13 @@ static inline Signal combs(const Settings& s, const Tables& t, const Signal& x)
         const double dmax = d0 * std::exp2(s.lfoPitch / 12.0) + 4.0;
         const int size = nextPowerOf2(static_cast<int>(dmax) + 4), mask = size - 1;
         std::vector<double> ring(static_cast<size_t>(size), 0.0);
-        double d = d0, g = std::exp(-c * d0);   // feedback: 10^(-3 d / (fs T60))
+        double d = d0, g = std::exp(-(ringOn ? t.ring[0] : c) * d0);   // feedback: 10^(-3 d / (fs T60))
         for (int i = 0; i < n; ++i)
         {
             if (lfoOn)
-            {
                 d = d0 / t.pitch[i];
-                if ((i & 15) == 0)
-                    g = std::exp(-c * d);   // ring time: updated every 16 samples
-            }
+            if ((lfoOn || ringOn) && (i & 15) == 0)
+                g = std::exp(-(ringOn ? t.ring[static_cast<size_t>(i >> 4)] : c) * d);   // updated every 16 samples
             const double pos = i - d;
             const long p0 = static_cast<long>(std::floor(pos));
             const double a = pos - p0;
@@ -566,11 +626,11 @@ static inline void spectralShape(const Tables& t, Signal& x)
     x.swap(y);
 }
 
-// one stream, steps 1 to 6 (unit energy)
+// one stream, steps 1 to 5 (unit energy)
 static inline Signal stream(const Settings& s, const Tables& t, const int k)
 {
     const int n = t.n;
-    Signal w = source(s, k, n + t.lead);
+    Signal w = source(s, k, n + t.lead, t.lead);
     colour(t, w);
     if (s.tune > 0)
     {
@@ -584,7 +644,7 @@ static inline Signal stream(const Settings& s, const Tables& t, const int k)
     for (int i = 0; i < n; ++i)
     {
         const double tt = i / s.fs;
-        w[i] = static_cast<float>(w[i] * (spectral ? endFade(s, tt) : envelope(s, tt)) * gate(s, tt));
+        w[i] = static_cast<float>(w[i] * (spectral ? endFade(s, tt) : envelope(s, tt)));
         energy += static_cast<double>(w[i]) * w[i];
     }
     const double g = energy > 0.0 ? 1.0 / std::sqrt(energy) : 0.0;

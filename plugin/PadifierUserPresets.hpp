@@ -41,11 +41,13 @@ namespace PadifierUserPresets {
 static const size_t kMaxNameLength = 24;
 
 // file keys of the preset parameters, by index (symbols of the parameters); the bypass is not
-// saved.  A file of 1.0 has "noise" instead of "colour": ignored, the colour takes its default.
+// saved.  A file of 1.0 has "noise" instead of "colour": ignored, the colour takes its default;
+// so are the keys of the gate of 1.1 and 1.2 (rhythm, duty, attack, release).
 static const char* const kUserPresetKeys[kPresetParamCount] = {
     "colour", "length", "swell", "decay", "seed", "lowcut", "highcut", "width", "mix", "output", nullptr,
     "density", "tune", "note", "chord", "resonance", "damping", "bloom", "lforate", "lfopitch", "lfotone",
-    "rhythm", "duty", "panrate", "pandepth", "cross", "predelay", "attack", "release",
+    "panrate", "pandepth", "cross", "predelay", "lforesonance", "lfodensity", "lfolowcut", "lfohighcut",
+    "phasepitch", "phasetone", "phaseresonance", "phasedensity", "phaselowcut", "phasehighcut",
 };
 
 static inline bool validName(const std::string& name)

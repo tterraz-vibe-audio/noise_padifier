@@ -11,7 +11,8 @@
  * 4. Comb and chord: peaks at the harmonics of the note, at the notes of the chord; LFO on the
  *    pitch: the peak moves by the depth.
  * 5. Damping, bloom, LFO on the tone: levels by band and window against the law.
- * 6. Rhythm: zero where the gate is closed, the period follows the tempo.
+ * 6. Targets and phases of the LFO: resonance, density, swept low cut and high cut against
+ *    their laws; a phase of 90 or 180 degrees moves the motion; settings without effect ignored.
  * 7. Stereo motion and cross: gains of the outputs, energy kept.
  * 8. Cost (printed).
  */
@@ -89,7 +90,7 @@ static void testDefaults()
 {
     std::printf("1. Defaults\n");
     const Settings s = base();
-    check(!spectralEnvelope(s) && s.tune == 0 && s.rhythm == 0 && s.cross == 0.0, "defaults: no treatment on");
+    check(!spectralEnvelope(s) && s.tune == 0 && s.cross == 0.0, "defaults: no treatment on");
     const Response a = generate(s), b = generate(s);
     const double el = energy(a.h[0][0]), er = energy(a.h[1][1]);
     char what[160];
@@ -332,60 +333,160 @@ static void testSpectral()
     check(std::fabs(swing - 24.0) < 2.0, what);
 }
 
-static void testRhythm()
+// contrast of the harmonics 1-6 of 220 Hz against the gaps between them, window of 0.2 s at t, dB
+static double combContrast(const std::vector<Response>& r, const double fs, const double t)
 {
-    std::printf("6. Rhythm\n");
-    Settings s = base();
-    s.swell = 0.0;
-    s.rhythm = 4;   // 1/8
-    s.duty = 0.4;
-    s.attack = 0.1;
-    s.release = 0.2;
-    bool ok = true;
-    for (const double tempo : { 120.0, 90.0 })
+    double on = 0.0, off = 0.0;
+    for (int k = 1; k <= 6; ++k)
     {
-        s.tempo = tempo;
-        const Response r = generate(s);
-        const double period = 0.5 * 60.0 / tempo;
-        int closedNonZero = 0, openZero = 0;
-        for (int i = 0; i < r.length - static_cast<int>(0.03 * s.fs); ++i)
-        {
-            const double tau = std::fmod(i / s.fs, period) / period;
-            if (tau > 0.61 && tau < 0.99)   // after duty + release
-                closedNonZero += r.h[0][0][i] != 0.0f;
-            if (tau > 0.12 && tau < 0.38)   // held open
-                openZero += r.h[0][0][i] == 0.0f;
-        }
-        ok = ok && closedNonZero == 0 && openZero < 5 && std::fabs(energy(r.h[0][0]) - 1.0) < 1e-5;
+        on += windowBand(r, fs, t, 220.0 * k - 4.0, 220.0 * k + 4.0);
+        off += windowBand(r, fs, t, 220.0 * (k + 0.5) - 4.0, 220.0 * (k + 0.5) + 4.0);
     }
-    check(ok, "1/8 at 120 and 90 BPM, duty 40 %, attack 10 %, release 20 %: zero after the release, open while held, energy 1");
+    return (on - off) / 6.0;
+}
 
-    // the law of one step: rise sin^2 over the attack, held, fall cos^2 over the release
-    s.tempo = 120.0;
-    const double T = 0.25;
-    const double g1 = gate(s, 0.05 * T), g2 = gate(s, 0.1 * T), g3 = gate(s, 0.3 * T), g4 = gate(s, 0.5 * T),
-                 g5 = gate(s, 0.6 * T), g6 = gate(s, 3.0 * T + 0.05 * T);
+static void testLfoTargets()
+{
+    std::printf("6. Targets and phases of the LFO\n");
     char what[200];
-    std::snprintf(what, sizeof(what), "gate: %.3f at half the attack (0.5), %.3f at its end (1), %.3f held (1), %.3f at half the "
-                  "release (0.5), %.3f after (0); next steps alike (%.3f)", g1, g2, g3, g4, g5, g6);
-    check(std::fabs(g1 - 0.5) < 1e-9 && std::fabs(g2 - 1.0) < 1e-9 && g3 == 1.0 && std::fabs(g4 - 0.5) < 1e-9 && g5 < 1e-9
-          && std::fabs(g6 - 0.5) < 1e-9, what);
+    Settings s = base();
+    s.colour = 0.0;
+    s.swell = 0.0;
+    s.decay = 0.0;
 
-    // a release longer than the closed part runs into the next step: no step down
-    s.duty = 0.8;
-    s.release = 0.5;
-    double jump = 0.0, prev = gate(s, 0.0);
-    for (int i = 1; i < 48000; ++i)
+    // phase 180 degrees on the pitch: the vibrato upside down
     {
-        const double g = gate(s, i / 48000.0);
-        jump = std::fmax(jump, std::fabs(g - prev));
-        prev = g;
+        Settings v = s;
+        v.tune = 1;
+        v.length = 10.0;
+        v.lfoRate = 0.1;
+        v.lfoPitch = 1.0;
+        v.resonance = 60.0;
+        v.phase[kLfoPitch] = 2;
+        const std::vector<Response> r = draws(v);
+        const int w = static_cast<int>(0.2 * v.fs);
+        const double a = peakFrequency(r, static_cast<size_t>(2.5 * v.fs) - w / 2, w, v.fs, 180.0, 260.0);
+        const double b = peakFrequency(r, static_cast<size_t>(7.5 * v.fs) - w / 2, w, v.fs, 180.0, 260.0);
+        std::snprintf(what, sizeof(what), "LFO pitch, phase 180: peak %.1f Hz at 2.5 s, %.1f Hz at 7.5 s (207.7 and 233.1, +-2)", a, b);
+        check(std::fabs(a - 207.65) < 2.0 && std::fabs(b - 233.08) < 2.0, what);
     }
-    std::snprintf(what, sizeof(what), "duty 80 %%, release 50 %% (into the next step): largest change per sample %.4f (< 0.01)", jump);
-    check(jump < 0.01, what);
-    s.duty = 1.0;
-    s.attack = 0.0;
-    check(gate(s, 0.1) == 1.0 && gate(s, 0.25) == 1.0, "duty 100 %, no attack: always open");
+
+    // phase 90 degrees on the tone: brightest at 0 and 2 s, darkest at 1 s
+    {
+        Settings v = s;
+        v.length = 4.0;
+        v.lfoTone = 3.0;
+        v.lfoRate = 0.5;
+        v.phase[kLfoTone] = 1;
+        const std::vector<Response> r = draws(v);
+        const auto tilt = [&](const double t) {
+            return windowBand(r, v.fs, t, 3500.0, 4500.0) - windowBand(r, v.fs, t, 220.0, 280.0);
+        };
+        const double swing = tilt(2.0) - tilt(1.0);
+        std::snprintf(what, sizeof(what), "LFO tone, phase 90: tilt at 2 s against 1 s %.1f dB (law 24, +-2)", swing);
+        check(std::fabs(swing - 24.0) < 2.0, what);
+    }
+
+    // resonance 30 % +- 50 %: clearly pitched at the top of the LFO (80 %), a light tint at the
+    // bottom (0 %); phase 180 the other way round
+    for (const int phase : { 0, 2 })
+    {
+        Settings v = s;
+        v.tune = 1;
+        v.length = 10.0;
+        v.lfoRate = 0.1;
+        v.resonance = 30.0;
+        v.lfoResonance = 50.0;
+        v.phase[kLfoResonance] = phase;
+        const std::vector<Response> r = draws(v);
+        const double top = combContrast(r, v.fs, phase == 0 ? 2.5 : 7.5), bottom = combContrast(r, v.fs, phase == 0 ? 7.5 : 2.5);
+        std::snprintf(what, sizeof(what), "LFO resonance 30 +- 50 %%, phase %d: harmonics %.1f dB above the gaps at the top, "
+                      "%.1f dB at the bottom (> 15, < 5)", 90 * phase, top, bottom);
+        check(top > 15.0 && bottom < 5.0, what);
+    }
+
+    // density 40 / s, +- 1 octave: impulses per window = integral of the density
+    for (const int phase : { 0, 2 })
+    {
+        Settings v = s;
+        v.length = 4.0;
+        v.density = 40.0;
+        v.lfoDensity = 1.0;
+        v.lfoRate = 0.25;
+        v.phase[kLfoDensity] = phase;
+        const Response r = generate(v);
+        int worst = 0;
+        for (const double a : { 0.2, 1.2, 2.2 })
+        {
+            int count = 0;
+            for (int i = static_cast<int>(a * v.fs); i < static_cast<int>((a + 1.0) * v.fs); ++i)
+                count += r.h[0][0][i] != 0.0f;
+            double law = 0.0;
+            for (double t = a; t < a + 1.0; t += 1e-4)
+                law += densityAt(v, t) * 1e-4;
+            worst = std::max(worst, static_cast<int>(std::lround(std::fabs(count - law))));
+        }
+        std::snprintf(what, sizeof(what), "LFO density 40 /s +- 1 octave, phase %d: impulses per second within %d of the law (<= 2)",
+                      90 * phase, worst);
+        check(worst <= 2, what);
+    }
+
+    // swept filters: levels per hertz against the law of sweptFilters (Butterworth magnitudes)
+    const auto density = [](const std::vector<Response>& r, const double fs, const double t, const double f0, const double f1) {
+        return windowBand(r, fs, t, f0, f1) - 10.0 * std::log10(f1 - f0);
+    };
+    {
+        Settings v = s;
+        v.length = 4.0;
+        v.lfoRate = 0.25;   // top at 1 s, bottom at 3 s
+        v.highCut = 2000.0;
+        v.lfoHighCut = 2.0;   // 8 kHz at 1 s, 500 Hz at 3 s
+        std::vector<Response> r = draws(v);
+        double worst = 0.0;
+        for (const double t : { 1.0, 3.0 })
+            for (const double f : { 1000.0, 4000.0 })
+            {
+                const double measured = density(r, v.fs, t, f / 1.1, f * 1.1) - density(r, v.fs, t, 100.0, 200.0);
+                const double law = 20.0 * std::log10(sweptFilters(v, f, t) / sweptFilters(v, 150.0, t));
+                worst = std::fmax(worst, std::fabs(measured - law));
+                if (std::getenv("VERBOSE"))
+                    std::printf("    high cut t %.1f f %.0f: measured %.1f law %.1f\n", t, f, measured, law);
+            }
+        std::snprintf(what, sizeof(what), "LFO high cut 2 kHz +- 2 octaves: 1 and 4 kHz within %.1f dB of the law (< 2)", worst);
+        check(worst < 2.0, what);
+
+        v.highCut = kHighCutOff;
+        v.lfoHighCut = 0.0;
+        v.lowCut = 200.0;
+        v.lfoLowCut = 2.0;   // 800 Hz at 1 s, 50 Hz at 3 s
+        r = draws(v);
+        worst = 0.0;
+        for (const double t : { 1.0, 3.0 })
+            for (const double f : { 200.0, 400.0 })
+            {
+                const double measured = density(r, v.fs, t, f / 1.1, f * 1.1) - density(r, v.fs, t, 3000.0, 5000.0);
+                const double law = 20.0 * std::log10(sweptFilters(v, f, t) / sweptFilters(v, 4000.0, t));
+                worst = std::fmax(worst, std::fabs(measured - law));
+                if (std::getenv("VERBOSE"))
+                    std::printf("    low cut t %.1f f %.0f: measured %.1f law %.1f\n", t, f, measured, law);
+            }
+        std::snprintf(what, sizeof(what), "LFO low cut 200 Hz +- 2 octaves: 200 and 400 Hz within %.1f dB of the law (< 2)", worst);
+        check(worst < 2.0, what);
+    }
+
+    // settings without effect: no other response
+    float p[kParamFirstOutput];
+    for (int i = 0; i < kParamFirstOutput; ++i)
+        p[i] = kPadifierRanges[i].def;
+    const Settings d = fromParams(p, 48000.0);
+    p[kParamLowCut] = 300.0f;            // fixed filter, not in the response
+    p[kParamHighCut] = 3000.0f;
+    p[kParamLfoResonance] = 40.0f;       // tune off
+    p[kParamLfoDensity] = 2.0f;          // smooth noise
+    p[kParamPhaseTone] = 2.0f;           // no depth
+    p[kParamLfoRate] = 3.0f;             // no target
+    check(fromParams(p, 48000.0) == d, "filters without LFO, resonance with Tune off, density of smooth noise, phase and "
+                                       "rate without depth: the same settings");
 }
 
 static void testStereo()
@@ -434,7 +535,12 @@ static void cost()
         s.damping = 6.0;
         s.bloom = 0.5;
         s.lfoTone = 3.0;
-        s.rhythm = 5;
+        s.lfoResonance = 30.0;
+        s.lfoDensity = 1.0;
+        s.lfoLowCut = 1.0;
+        s.lowCut = 200.0;
+        s.lfoHighCut = 2.0;
+        s.highCut = 3000.0;
         s.cross = 1.0;
         s.panDepth = 1.0;
         s.density = 100.0;
@@ -457,7 +563,7 @@ int main(int argc, char** argv)
     testDensity();
     testTune();
     testSpectral();
-    testRhythm();
+    testLfoTargets();
     testStereo();
     if (argc > 1 && std::strcmp(argv[1], "--bench") == 0)
         cost();

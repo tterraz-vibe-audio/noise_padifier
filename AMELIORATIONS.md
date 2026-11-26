@@ -98,3 +98,36 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
   l'ancien Pearl, gris froid et ocre, jurait avec la carte) ; Dusk inchangé.
 - Vérifié : tests des réponses et du DSP (deux compilations), `./build.sh` complet sans
   avertissement, validateur 47/47 Linux et Windows, manuels FR/EN de 18 pages sans avertissement.
+
+## Après 1.2.0 (session 74, 2026-11-26 ; non publié)
+- **Porte rythmique retirée** (décision de l'utilisateur : pas utile en pratique ; aucun projet
+  n'emploie les releases, pas de compatibilité) : paramètres Rhythm, Duty, Attack, Release et
+  sortie Tempo supprimés (numéros des suivants décalés), `DISTRHO_PLUGIN_WANT_TIMEPOS` retiré,
+  étape « porte » de `NoiseIR.hpp`, faders de l'interface (code des faders retiré), liste Rhythm,
+  préréglage Pulse gate (12 préréglages d'usine). Clés `rhythm`, `duty`, `attack`, `release` d'un
+  préréglage de l'utilisateur ignorées à la lecture. Section MOTION refaite en deux rangées (LFO ;
+  Pan rate, Pan depth, Cross) et périodes du LFO et du panoramique en bas. Réponses inchangées
+  pour tout réglage sans porte (la porte valait 1).
+- Vérifié : `./build.sh` complet sans avertissement (tests des réponses et du DSP, deux
+  compilations, préférences, préréglages), validateur VST3 47/47 Linux et Windows, captures
+  refaites (`doc/captures/`), `fig_traitements` (le panneau de la porte remplacé par LFO tone),
+  manuels FR/EN de 18 pages sans avertissement LaTeX.
+- **LFO sur d'autres cibles, phase par cible** (demande de l'utilisateur ; choix : un seul LFO pour
+  le timbre, le panoramique gardant le sien ; phases en crans de 90° ; filtre balayé autour de
+  High cut, puis aussi de Low cut) : profondeurs Reson (± points de Resonance, 0-100), Density,
+  Low cut, High cut (± octaves) ; une phase par cible (Vibrato, Tone, Reson, Density, Low cut,
+  High cut : paramètres `kParamPhase*`, 0-3). Density : cellules du bruit épars de durée
+  fs / density(t) ; Reson : temps de résonance des peignes par blocs de 16 échantillons, amorce
+  sur le plus long ; filtres : module de Butterworth d'ordre 2 dans la TFCT, fréquences de coupure
+  une fois par trame, filtre fixe du greffon mis au neutre tant que le LFO le balaie (il passe au
+  neutre en 20 ms dès le réglage, la nouvelle réponse arrive après sa construction : court écart
+  de timbre au changement). Interface : MOTION en trois rangées (LFO RATE, TONE, RESON ;
+  DENSITY, LOW CUT, HIGH CUT ; PAN RATE, PAN DEPTH, CROSS), case de phase sous chaque profondeur
+  (clic, clic droit, molette), case de Vibrato dans TUNE (séparateur de TUNE descendu à 394) ;
+  périodes dans les bulles de LFO RATE et PAN RATE. Préréglage Filter sweep (13 préréglages).
+- Vérifié : réponses identiques au bit près sans les nouvelles cibles (7 réglages, `tools/ir.cpp`
+  avant/après) ; nouveaux tests de `test_ir` (phases, Reson, Density, filtres à 0,6 dB de la loi)
+  et de `test_dsp` (LFO sur les filtres : sortie = convolution, filtres fixes coupés) ;
+  `./build.sh` complet sans avertissement ; validateur VST3 47/47 Linux et Windows ; coût d'une
+  reconstruction inchangé sans les nouvelles cibles, +9 % avec toutes (192 kHz, 30 s : 1,8 → 1,9 s) ;
+  captures refaites (Pearl : Filter sweep) ; manuels FR/EN de 18 pages sans avertissement.

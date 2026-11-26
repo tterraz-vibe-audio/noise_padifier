@@ -21,7 +21,6 @@
 #define DISTRHO_PLUGIN_NUM_OUTPUTS   2
 #define DISTRHO_PLUGIN_WANT_LATENCY  1   // 256 samples (convolution in blocks)
 #define DISTRHO_PLUGIN_WANT_PROGRAMS 1
-#define DISTRHO_PLUGIN_WANT_TIMEPOS  1   // tempo of the host, for the rhythm
 #define DISTRHO_PLUGIN_WANT_STATE    1   // A/B comparison of the interface saved with the project
 #define DISTRHO_PLUGIN_WANT_FULL_STATE 1 // the plugin keeps the state strings (getState)
 #define DISTRHO_UI_USE_NANOVG        1

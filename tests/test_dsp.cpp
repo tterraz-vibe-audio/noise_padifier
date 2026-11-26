@@ -13,10 +13,11 @@
  *    (g linear over M samples, at the place given by the head of Convolver.hpp), the new one
  *    after; the old set comes back to be freed.
  * 3. Plugin: latency 256; mix 0 and bypass: the input delayed, exactly; mix 100 % with the
- *    filters off == the convolution with the responses of the parameters, also with Cross; a
- *    change of length rebuilt by the thread and crossfaded in; the tempo of the host rebuilds
- *    the response of the rhythm; pre-delay: the wet signal delayed exactly; low cut, high cut;
- *    width 0: L == R; presets finite; meters; FPU state of the caller restored.
+ *    filters off == the convolution with the responses of the parameters, also with Cross, and
+ *    with the LFO on the filters (fixed filters then off); a
+ *    change of length rebuilt by the thread and crossfaded in; pre-delay: the wet signal delayed
+ *    exactly; low cut, high cut; width 0: L == R; presets finite; meters; FPU state of the caller
+ *    restored.
  * 4. Cost (printed, not checked): time per second of audio.
  * The impulse responses themselves are tested by tests/test_ir.cpp.
  */
@@ -261,7 +262,7 @@ struct Change {
 
 static void processPlugin(const float* values, const double sr, const std::vector<float>& L, const std::vector<float>& R,
                           std::vector<float>& oL, std::vector<float>& oR, const std::vector<Change>& changes = {},
-                          float* outs = nullptr, uint32_t* latency = nullptr, const double tempo = 0.0)
+                          float* outs = nullptr, uint32_t* latency = nullptr)
 {
     d_nextSampleRate = sr;
     d_nextBufferSize = 512;
@@ -290,16 +291,7 @@ static void processPlugin(const float* values, const double sr, const std::vecto
             f = std::min(f, changes[c].at - n);
         const float* in[2] = { &L[n], &R[n] };
         float* out[2] = { &oL[n], &oR[n] };
-        if (tempo > 0.0)
-        {
-            TimePosition tp;
-            tp.bbt.valid = true;
-            tp.bbt.beatsPerMinute = tempo;
-            p.setTimePosition(tp);
-        }
         p.run(in, out, static_cast<uint32_t>(f));
-        if (tempo > 0.0 && n == 0)
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));   // the thread rebuilds
         n += f;
     }
     if (outs)
@@ -405,23 +397,22 @@ static void testPlugin()
     std::snprintf(what, sizeof(what), "cross 70 %%, chord, damping, motion: both inputs convolved (error %.2e of the peak)", e);
     check(irc.cross && e < 1e-5, what);
 
-    // rhythm on, host at 90 BPM (the response was built at 120 by activate): rebuilt for 90
-    vc[kParamCross] = 0.0f;
-    vc[kParamTune] = 0.0f;
-    vc[kParamRhythm] = 4.0f;   // 1/8
-    float outs[kParamCount];
-    processPlugin(vc, fs, L, R, oL, oR, {}, outs, nullptr, 90.0);
-    const PadifierIR::Response irt = PadifierIR::generate(PadifierIR::fromParams(vc, fs, 90.0));
-    double err = 0.0, pk = 0.0;
-    for (size_t t = 48000; t + 256 < N; t += 3)
-    {
-        const double y = direct(L, irt.h[0][0], t);
-        pk = std::max(pk, std::fabs(y));
-        err = std::max(err, std::fabs(oL[t + 256] - y));
-    }
-    std::snprintf(what, sizeof(what), "rhythm 1/8, host at 90 BPM: rebuilt for 90 (error %.2e of the peak), tempo shown %.0f",
-                  err / pk, outs[kParamTempo]);
-    check(err / pk < 1e-5 && outs[kParamTempo] == 90.0f, what);
+    // LFO on both filters: they are in the response, the fixed filters of the pad are off
+    float vf[kPresetParamCount];
+    std::copy(v, v + kPresetParamCount, vf);
+    vf[kParamLowCut] = 300.0f;
+    vf[kParamHighCut] = 3000.0f;
+    vf[kParamLfoLowCut] = 1.0f;
+    vf[kParamLfoHighCut] = 1.5f;
+    vf[kParamPhaseHighCut] = 2.0f;
+    vf[kParamLfoRate] = 4.0f;
+    processPlugin(vf, fs, L, R, oL, oR);
+    const PadifierIR::Response irf = PadifierIR::generate(PadifierIR::fromParams(vf, fs));
+    e = std::max(convolutionError(oL, N, [&](size_t t) { return direct(L, irf.h[0][0], t); }, peak),
+                 convolutionError(oR, N, [&](size_t t) { return direct(R, irf.h[1][1], t); }, peak));
+    std::snprintf(what, sizeof(what), "LFO on low cut and high cut: the convolution with the swept response, fixed filters "
+                  "off (error %.2e of the peak)", e);
+    check(e < 1e-5, what);
 
     // pre-delay 10 ms: the wet signal 480 samples later, exactly (set before the start)
     neutral(vc);
@@ -439,8 +430,7 @@ static void testPlugin()
     s2.length = 0.3;
     const PadifierIR::Response ir2 = PadifierIR::generate(s2);
     processPlugin(v, fs, L, R, oL, oR, { { 24000, kParamLength, 0.3f } });
-    err = 0.0;
-    pk = 0.0;
+    double err = 0.0, pk = 0.0;
     for (size_t t = 72000; t + 256 < N; t += 3)
     {
         const double y = direct(L, ir2.h[0][0], t);

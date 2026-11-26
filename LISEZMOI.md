@@ -1,10 +1,11 @@
 # Noise Padifier
 
 Effet « pad » par convolution : chaque canal de l'entrée est convolué avec du **bruit façonné**
-(couleur, densité, peignes accordés sur une note ou un accord, enveloppe par fréquence, LFO,
-rythme sur le tempo, mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 30 s) ; tout son est
+(couleur, densité, peignes accordés sur une note ou un accord, enveloppe par fréquence, LFO sur
+la note, la couleur, la résonance, la densité et des filtres balayés, avec une phase par cible,
+mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 30 s) ; tout son est
 étalé en nappe. Version 1.2.0 (traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
-même fichier, § « 1.2.0 »).
+même fichier, § « 1.2.0 » ; porte rythmique retirée depuis, non publié : § « Après 1.2.0 »).
 C++ avec DPF, interface NanoVG, structure reprise de Tinplate et Brimstone.
 Formats : VST3 et CLAP pour Windows 64 bits ; VST3, CLAP et LV2 pour Linux.
 **Licence : GPL 3 ou ultérieure** (`COPYING`) ; FFT : pffft de Julien Pommier (licence de
@@ -17,14 +18,16 @@ installateur, préférences, en-tête de l'interface).
 ## Algorithme
 **Réponses impulsionnelles** (`plugin/NoiseIR.hpp`, étapes détaillées dans son en-tête et dans le
 manuel § « Les réponses impulsionnelles ») : deux trajets directs (quatre avec Cross), bruit
-indépendant par trajet (graine (Seed, trajet), SplitMix64) : source lisse ou éparse (Density) →
-couleur (pente Colour par FFT) → peignes (Tune, Note, Chord, Resonance, vibrato ; amorce de
-min(T60, 5 s)) → enveloppe (dans le temps, ou par TFCT si Damping, Bloom ou LFO tone) → porte
-(Rhythm au tempo de l'hôte ; par pas : montée sin² Attack, palier jusqu'à Duty, descente cos²
-Release, en % du pas, fronts ≥ 1 ms ; maximum du pas en cours et des descentes précédentes) → énergie 1 ; puis direct × cos(c π/4) + croisé × sin(c π/4) et
+indépendant par trajet (graine (Seed, trajet), SplitMix64) : source lisse ou éparse (Density,
+cellules au fil du LFO) → couleur (pente Colour par FFT) → peignes (Tune, Note, Chord, Resonance
+et LFO, vibrato ; amorce de min(T60 le plus long, 5 s)) → enveloppe (dans le temps, ou par TFCT si
+Damping, Bloom, LFO tone ou filtres balayés : Butterworth d'ordre 2 en module autour de Low cut et
+High cut, le filtre fixe correspondant du greffon alors coupé) → énergie 1. LFO : sin(2π rate t +
+phase de la cible), phase 0/90/180/270° par cible (`LfoTarget`) ; puis direct × cos(c π/4) + croisé × sin(c π/4) et
 panoramique (Pan). Tables communes aux flux, flux en parallèle (fils du greffon) : reconstruction
 0,02 s par défaut, pire cas (30 s, tout activé, Cross) 0,66 s à 48 kHz et 2,7 s à 192 kHz
-(mémoire passagère ~620 Mo).
+(mémoire passagère ~620 Mo) ; session 74, autre machine : 0,46 s et 1,9 s avec les nouvelles cibles
+du LFO (+9 % sur les mêmes réglages sans elles, mesuré par `tools/ir.cpp`).
 Paramètres sans effet ramenés à leur défaut dans `fromParams` (pas de reconstruction inutile).
 
 **Convolution** (`plugin/Convolver.hpp`), sans allocation dans le fil audio : sortie o = entrée o ∗
@@ -42,12 +45,12 @@ Coût (un cœur, `BENCH=1 ./build.sh`, stéréo, blocs de 256 ; options du greff
 quelques % d'écart) : 48 kHz 0,9 % (3 s), 1,2 % (10 s), 2,2 % (10 s, Cross), 2,2 % (30 s), 3,9 %
 (30 s, Cross) ; 96 kHz 2,4, 3,1, 5,7, 5,5, 9,3 % ; 192 kHz 7,6, 9,1, 16, 13, 24 %.
 
-**Changement de réponse** (réglages de `isIRParam`, ou tempo de l'hôte si Rhythm) : réponse refaite
+**Changement de réponse** (réglages de `isIRParam`) : réponse refaite
 dans un fil du greffon, prise au début d'un bloc de l'étage 2 (trame A) ; chaque tâche (trame de
 tête, bloc d'étage) calcule la réponse entendue là où tombe sa sortie : à partir de A + R2 tous
 les étages ont la nouvelle, fondu linéaire de M1 échantillons sur [A + R2, A + R2 + R1), puis
-l'ancienne est libérée hors du fil audio. Changement entendu au plus 0,7 s après sa construction. `activate()` construit la réponse sur-le-champ. Tempo :
-`DISTRHO_PLUGIN_WANT_TIMEPOS`, sortie `kParamTempo` (montrée par l'interface), 120 BPM sans hôte.
+l'ancienne est libérée hors du fil audio. Changement entendu au plus 0,7 s après sa construction. `activate()` construit la réponse sur-le-champ.
+Pas de tempo de l'hôte (porte rythmique retirée après la 1.2.0).
 
 Chaîne : (L, R) → convolution → pré-retard (0-500 ms, fondu de 30 ms) → Low cut → High cut → Width
 → pad ; sortie = pad · sin(π/2 · mix) + sec retardé · cos(π/2 · mix) → Output → fondu du Bypass
@@ -59,22 +62,28 @@ TUNE : Tune (off, comb, chord), Note (C1-C7), Chord (9), Resonance (20 ms-5 s), 
 (« Vibrato », demi-tons). ENVELOPE : Length (0,1-30 s), Swell, Decay (part de la longueur prise
 par la descente jusqu'à -60 dB, 0-100 %, 75 % par défaut ; tenue à plein niveau entre le pic et
 le début de la descente ; en dB jusqu'à la 1.1 : une valeur de 1.1 est relue 0 %), Damping (dB/oct au-dessus de 250 Hz),
-Bloom (±100 %). MOTION : LFO rate, LFO tone, Rhythm (divisions, pointées, triolets), Attack, Duty, Release (faders), Pan
+Bloom (±100 %). MOTION : LFO rate, profondeurs du LFO Tone, Reson (± % de Resonance), Density,
+Low cut, High cut (± octaves), phases (une par cible, Vibrato compris : 0, 90, 180, 270°), Pan
 rate, Pan depth, Cross. OUTPUT : Mix, Output, Low cut, High cut, Pre-delay, Width ; Bypass.
-Numéros des paramètres de 1.0 gardés (Noise → Colour), nouveaux à la suite (`PadifierParams.hpp`).
+Numéros des paramètres de 1.0 gardés (Noise → Colour), nouveaux à la suite (`PadifierParams.hpp`) ;
+Rhythm, Duty, Attack, Release et la sortie Tempo retirés après la 1.2.0 (numéros décalés, sans
+compatibilité : aucun projet n'emploie les releases, décision de l'utilisateur) ; cibles du LFO et
+phases ajoutées ensuite (après Pre-delay).
 
 Préréglages d'usine (13) : Default, Soft pad, Endless wash, Dark cloud, Airy halo, Short smear,
-Reverse swell, Tuned drone, Chord pad, Pulse gate, Grain cloud, Blooming, Send (100 % wet) ;
+Reverse swell, Tuned drone, Chord pad, Grain cloud, Blooming, Filter sweep, Send (100 % wet) ;
 réglés à la lecture des lois, **pas à l'oreille** (`makePreset` : défauts + réglages donnés).
 
 ## Interface
 1200 × 760, redimensionnable, HiDPI. Cinq sections dans l'ordre du signal : **1 SOURCE**, **2 TUNE**
 (sélecteur OFF | COMB | CHORD ; notes et temps de résonance), **3 ENVELOPE** (pic par fréquence,
-fin, échantillons, latence), **4 MOTION** (période du LFO, durée d'un pas au tempo), **5 OUTPUT** ;
-boutons sans effet grisés (`knobActive`) ; Chord et Rhythm en listes déroulantes (`kLists` : clic,
+fin, échantillons, latence), **4 MOTION** (LFO rate et profondeurs du LFO, chacune avec sa case de phase ; Pan rate, Pan
+depth, Cross ; périodes dans les bulles de LFO RATE et PAN RATE ; case de phase de Vibrato dans
+TUNE), **5 OUTPUT** ;
+boutons sans effet grisés (`knobActive`) ; Chord en liste déroulante (`kLists` : clic,
 molette d'une valeur ; un bouton tournant y restait bloqué à la molette, le cran arrondi revenant
 à la même valeur) ; molette d'un cran par valeur sur Note et Seed. En bas : **carte temps-fréquence** de la réponse (image
-200 × 72 de `spectralGain` × porte, refaite seulement quand la réponse ou le thème change ; notes
+200 × 72 de `spectralGain`, refaite seulement quand la réponse ou le thème change ; notes
 des peignes avec vibrato), **spectre du pad**, vu-mètres IN, PAD, OUT.
 Repris de Tinplate : boutons (glisser, Maj, molette, double-clic, clic droit pour saisir), bulles
 d'aide, préréglages de l'utilisateur (`<nom>.preset` dans `%APPDATA%\Padifier\presets\` ou
@@ -112,14 +121,18 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   défauts (énergie 1, mêmes bits deux fois, flux indépendants), couleur -6..+6 à 0,73 dB près par
   octave, densité (une impulsion par cellule), peigne et accord (pics 19-24 dB au-dessus des
   creux), vibrato à 0,4 Hz près, damping à 0,8 dB de la loi, bloom à 0,15 s, LFO de couleur
-  24,0 dB pour 24, porte (zéro exact fermée), panoramique (±74 dB), Cross (énergie 1 par sortie).
+  24,0 dB pour 24, panoramique (±74 dB), Cross (énergie 1 par sortie) ; session 74 : phases
+  (vibrato à 180°, tone à 90°), Reson (pics 30 dB au haut du LFO, 2 dB au bas, aussi à 180°),
+  Density (impulsions = intégrale de la loi à 1 près), filtres balayés (à 0,6 dB de la loi
+  Butterworth), réglages sans effet ignorés. Réponses identiques au bit près à celles d'avant pour
+  des réglages sans nouvelle cible (`tools/ir.cpp` avant et après).
 - `tests/test_dsp.cpp`, deux compilations, tout passe : convolution = convolution directe en double
   retardée de 256 échantillons (≤ 4,4e-7 de la crête, 1 à 4 M2 + 7 échantillons (les trois étages),
   48-192 kHz, blocs de l'hôte de 1 à 512) ; réponses croisées (≤ 3,5e-7) ; changement de réponse
   au moment prévu (ancienne jusqu'à A + R2, fondu de M1, nouvelle après) ;
   greffon : latence 256, mix 0 et Bypass = entrée retardée au bit près, mix 100 % = convolution par
-  les réponses (aussi avec Cross, accord, damping, mouvement), tempo de l'hôte 90 BPM → réponse
-  refaite, pré-retard exact (480 échantillons pour 10 ms), changement de Length sans clic, filtres,
+  les réponses (aussi avec Cross, accord, damping, mouvement, et avec le LFO sur Low cut et
+  High cut : filtres fixes coupés), pré-retard exact (480 échantillons pour 10 ms), changement de Length sans clic, filtres,
   Width 0, 13 préréglages finis, état du FPU rendu.
 - `tests/test_prefs.cpp`, `tests/test_user_presets.cpp`.
 - Validateur VST3 de Steinberg (`tools/validate_vst3.sh`) : 47/47 sur le VST3 Linux et sur le VST3
@@ -169,7 +182,12 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
 - Captures : `tools/capture_ui.sh EXE OUT.png` (attend la fenêtre visible, ne garde que une image de
   1200x760 : Wine crée d'abord une fenêtre temporaire de même nom, d'où des captures de l'écran
   entier). Manuels : Dusk = `-DPADIFIER_UI_DEMO=-1 -DPADIFIER_UI_DEMO_THEME=0
-  -DPADIFIER_UI_DEMO_PRESET=8` ; Pearl = `-DPADIFIER_UI_DEMO=10 -DPADIFIER_UI_DEMO_THEME=1
-  -DPADIFIER_UI_DEMO_PRESET=11` (bulle de BLOOM).
+  -DPADIFIER_UI_DEMO_PRESET=8` ; Pearl = `-DPADIFIER_UI_DEMO=304 -DPADIFIER_UI_DEMO_THEME=1
+  -DPADIFIER_UI_DEMO_PRESET=11` (Filter sweep, bulle de la phase de LOW CUT ; cases de phase :
+  survol 300 + rang de `kPhases`).
+- **Après 1.2.0 (session 74, non publié, non commité)** : porte rythmique retirée (décision de
+  l'utilisateur : pas utile) ; LFO sur Resonance, Density, Low cut et High cut, phase par cible
+  (crans de 90°, décision de l'utilisateur), préréglage Filter sweep ; détail `AMELIORATIONS.md`
+  § « Après 1.2.0 ». Prochaine release = nouveau numéro.
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).

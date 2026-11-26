@@ -54,14 +54,13 @@ int main()
     for (int i = 0; i < kPresetParamCount; ++i)
     {
         const PadifierRange& q = kPadifierRanges[i];
-        a[i] = q.min + (q.max - q.min) * (0.123457f + 0.031f * i);
+        a[i] = q.min + (q.max - q.min) * std::fmod(0.123457f + 0.031f * i, 1.0f);
         b[i] = q.min;   // the other end
     }
     a[kParamTune] = 2.0f;
     a[kParamChord] = 6.0f;
-    a[kParamRhythm] = 9.0f;
     a[kParamBypass] = b[kParamBypass] = 0.0f;
-    check(save("Bright", a), "save (all the parameters of 1.1)");
+    check(save("Bright", a), "save (all the parameters)");
     float r[kPresetParamCount] = { 0 };
     check(load("Bright", r) && sameValues(a, r), "read back exactly");
 

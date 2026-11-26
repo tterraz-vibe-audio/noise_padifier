@@ -59,8 +59,9 @@ gone: a short note becomes a sustained sound that rises and dies away along the 
 
 The noise itself is shaped: its colour (from brown to violet), its density (from smooth noise to a
 cloud of grains), a tuning on a note or a chord by comb filters, an envelope that depends on
-frequency (highs that die sooner, lows that bloom later), an LFO, a rhythm on the tempo, a stereo
-motion and a true crossed stereo. All these treatments act \textbf{along the response}: they are
+frequency (highs that die sooner, lows that bloom later), an LFO (on the pitch, the colour, the
+resonance, the density and the filters, each with its phase), a stereo motion and a true crossed
+stereo. All these treatments act \textbf{along the response}: they are
 computed once, when the response is built, and cost nothing during playback.
 
 \begin{figure}[htbp]
@@ -114,8 +115,8 @@ the user in place (section~\ref{sec:files}).
   refine with \ctl{LOW CUT} and \ctl{HIGH CUT}.
 \item For a tuned pad: \ctl{TUNE} on \ctl{COMB} (one note) or \ctl{CHORD} (a chord), then
   \ctl{NOTE}, \ctl{CHORD} and \ctl{RESONANCE}.
-\item For motion: \ctl{RHYTHM} (pulse on the tempo), \ctl{PAN DEPTH} (stereo swing),
-  \ctl{VIBRATO} or \ctl{LFO TONE}.
+\item For motion: \ctl{PAN DEPTH} (stereo swing), \ctl{VIBRATO}, or a depth of the LFO in MOTION
+  (\ctl{TONE}, \ctl{HIGH CUT} for a filter sweep\ldots).
 \item Dose with \ctl{MIX}. The presets show each treatment.
 \end{enumerate}
 
@@ -129,7 +130,7 @@ the other settings is drawn faint (for example NOTE when TUNE is OFF); it can st
 
 \begin{center}
 \includegraphics[width=0.85\textwidth]{capture_pearl.png}\\[2pt]
-\small Light theme \ctl{PEARL}, Blooming preset, tooltip of BLOOM.
+\small Light theme \ctl{PEARL}, Filter sweep preset, tooltip of the phase of the LFO on LOW CUT.
 \end{center}
 
 \subsection{Header}
@@ -153,8 +154,8 @@ the other settings is drawn faint (for example NOTE when TUNE is OFF); it can st
 
 \subsection{Section 2: TUNE}
 The \ctl{OFF | COMB | CHORD} selector, then \ctl{NOTE}, the \ctl{CHORD} list, \ctl{RESONANCE} and
-\ctl{VIBRATO}. Below: the note and its frequency (or the notes of the chord) and the ring time of
-the combs.
+\ctl{VIBRATO} with, under its value, the box of its phase. Below: the note and its frequency (or
+the notes of the chord) and the ring time of the combs.
 
 \subsection{Section 3: ENVELOPE}
 \ctl{LENGTH}, \ctl{SWELL}, \ctl{DECAY}, \ctl{DAMPING} and \ctl{BLOOM}. Below: the time of the peak of
@@ -162,10 +163,10 @@ the envelope (at 125\,Hz and 8\,kHz when Bloom is on), the start of the fall and
 response (and the end level at 8\,kHz with Damping), the number of samples per path and the latency.
 
 \subsection{Section 4: MOTION}
-Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm (the \ctl{RHYTHM} list
-and the length of a step at the tempo of the host, then three vertical faders \ctl{ATTACK},
-\ctl{DUTY} and \ctl{RELEASE}), the stereo (\ctl{PAN RATE},
-\ctl{PAN DEPTH}, \ctl{CROSS}).
+At the top, the LFO: \ctl{LFO RATE}, then the depths \ctl{TONE}, \ctl{RESON}, \ctl{DENSITY},
+\ctl{LOW CUT} and \ctl{HIGH CUT}, each with, under its value, the box of its phase (0, 90, 180 or
+270°). At the bottom, the stereo: \ctl{PAN RATE}, \ctl{PAN DEPTH}, \ctl{CROSS}. The periods of the
+LFO and of the pan are in the tooltips of \ctl{LFO RATE} and \ctl{PAN RATE}.
 
 \subsection{Section 5: OUTPUT}
 \ctl{MIX}, \ctl{OUTPUT}, \ctl{LOW CUT}, \ctl{HIGH CUT}, \ctl{PRE-DELAY} and \ctl{WIDTH}.
@@ -174,12 +175,12 @@ and the length of a step at the tempo of the host, then three vertical faders \c
 \begin{itemize}
 \item on the left, the \textbf{time-frequency map} of the response: time from 0 to Length from
   left to right, frequency from 20\,Hz to 20\,kHz from bottom to top, level in colour (0 to
-  $-48$\dB, scale on the left). It shows the envelope, Damping, Bloom, LFO TONE and the gate of
-  RHYTHM; the light lines are the notes of the combs (harmonics with COMB, the notes of the chord
+  $-48$\dB, scale on the left). It shows the envelope, Damping, Bloom, the LFO on the colour and on the
+  filters; the light lines are the notes of the combs (harmonics with COMB, the notes of the chord
   and two harmonics with CHORD), with their vibrato; dashed, the peak of the envelope. The colour
   of the noise is not on it: it is on the spectrum;
-\item on the right, the \textbf{spectrum of the pad}: colour of the noise and filters, in dB, the
-  highest point at 0\dB;
+\item on the right, the \textbf{spectrum of the pad}: colour of the noise and filters (at their
+  centre when the LFO sweeps them), in dB, the highest point at 0\dB;
 \item below, three peak meters: \ctl{IN} (input), \ctl{PAD} (pad alone, after the filters and
   Width, before the mix), \ctl{OUT} (output), in dBFS; after a peak, the display falls back with a
   time constant of 0.25\,s.
@@ -190,13 +191,13 @@ and the length of a step at the tempo of the host, then three vertical faders \c
 \item drag vertically; \textsf{Shift} for fine adjustment;
 \item mouse wheel (\textsf{Shift}: fine);
 \item double-click or \textsf{Ctrl}+click: default value;
-\item faders (ATTACK, DUTY, RELEASE): drag vertically, the cap follows the mouse (\textsf{Shift}:
-  fine); wheel, double-click and right-click as for the knobs;
 \item whole-number settings (NOTE, SEED): one wheel notch per value;
-\item \ctl{CHORD} and \ctl{RHYTHM} lists: a click opens the list of values (the current one is
+\item \ctl{CHORD} list: a click opens the list of values (the current one is
   marked with a dot), a click chooses one, \textsf{Escape} or a click elsewhere closes it; the
   wheel over the closed box steps to the next or previous value;
-\item right-click: type the value (\textsf{Enter} confirms, \textsf{Escape} cancels; a comma is
+\item phase boxes (under VIBRATO and under the depths of the LFO): a click steps to the next phase,
+  a right-click to the previous one, the wheel too; faint while their target does not move;
+\item right-click on a knob: type the value (\textsf{Enter} confirms, \textsf{Escape} cancels; a comma is
   accepted as the decimal separator).
 \end{itemize}
 
@@ -226,12 +227,13 @@ Decay & 0--100\,\% & 75\,\% & part of the length taken by the fall \\
 Damping & 0--12\dB/oct & 0 & loss of the highs at the end \\
 Bloom & $-100$--+100\,\% & 0 & shift of the peak with frequency \\
 \multicolumn{4}{@{}l}{\textsf{4 MOTION}} \\
-LFO rate & 0.05--10\,Hz & 0.5\,Hz & rate of the LFO (vibrato, colour) \\
-LFO tone & 0--6\dB/oct & 0 & depth of the LFO on the colour \\
-Rhythm & off, 1/1--1/32 & off & gate on the tempo (dotted, triplets) \\
-Attack & 0--100\,\% & 10\,\% & rise at the start of each step \\
-Duty & 5--100\,\% & 50\,\% & open part of each step \\
-Release & 0--100\,\% & 25\,\% & fall after the open part \\
+LFO rate & 0.05--10\,Hz & 0.5\,Hz & rate of the LFO, shared by all its targets \\
+Tone & 0--6\dB/oct & 0 & depth of the LFO on the colour \\
+Reson & 0--100\,\% & 0 & depth of the LFO on Resonance \\
+Density & 0--4 octaves & 0 & depth of the LFO on Density \\
+Low cut & 0--4 octaves & 0 & depth of the LFO on Low cut \\
+High cut & 0--4 octaves & 0 & depth of the LFO on High cut \\
+Phases & 0, 90, 180, 270° & 0 & phase of the LFO on each target (and on Vibrato) \\
 Pan rate & 0.05--10\,Hz & 0.3\,Hz & rate of the stereo motion \\
 Pan depth & 0--100\,\% & 0 & depth of the stereo motion \\
 Cross & 0--100\,\% & 0 & true stereo: left-right crossings \\
@@ -312,26 +314,36 @@ negative, the lows arrive later (it warms up).
 
 \subsection{Motion}\label{sec:lfo}
 
-\paragraph{Motion along the response.} The LFO, the rhythm and the stereo motion are written into
-the response: they start at the attack of each sound, not on the time of the song. On spaced
+\paragraph{Motion along the response.} The LFO and the stereo motion are written into the
+response: they start at the attack of each sound, not on the time of the song. On spaced
 notes, each one makes the same motion; on dense playing, the motions of the successive notes
 overlap with an offset and soften. A response lasts 30\,s at most: a slow LFO only makes a few cycles
 per note.
 
-\paragraph{LFO rate, LFO tone.} Rate of the LFO (a sine starting from 0 at the attack), shared by
-the vibrato of the combs and the colour; LFO TONE swings the slope of the spectrum by $\pm$ its
-value: the pad gets brighter and darker.
+\paragraph{LFO rate.} Rate of the LFO, a sine starting at the attack of each sound, shared by all
+its targets: Vibrato (TUNE section) and the depths of MOTION. A depth of zero removes the target.
 
-\paragraph{Rhythm, Attack, Duty, Release.} A gate cuts the response into steps of the chosen
-division (1/1 to 1/32, dotted, triplets) at the tempo of the host (120\,BPM if it gives none). Each
-step rises during Attack ($\sin^2$ curve), stays open until the end of Duty, then falls during
-Release ($\cos^2$ curve). Attack and Release are in percent of the step, so that the shape follows
-the tempo; their times are shown in the tooltip. Attack is part of Duty (bounded by it); Release
-comes after and may run into the next step, the gate then taking the larger of the two levels (no
-step down). Each edge lasts at least 1\,ms.
-With a short Attack, Release and Duty, each sound comes back as separate bursts, like rhythmic
-echoes; with long edges, the pad breathes or undulates (Duty 100\,\% and a non-zero Attack: an
-amplitude modulation at the rate of the step). A change of tempo makes the response again.
+\paragraph{Tone.} Swings the slope of the spectrum by $\pm$ its value: the pad gets brighter and
+darker.
+
+\paragraph{Reson.} Swings Resonance by $\pm$ its value (in points of the 0--100\,\% scale, kept within
+it): the combs ring longer and shorter, the pad goes from a light tint to clear notes. No effect
+with TUNE on OFF.
+
+\paragraph{Density.} Swings Density by $\pm$ its value in octaves (between 10 and 10\,000 impulses
+per second): the grains of the sparse noise thicken and thin out. No effect with Density at its
+maximum (smooth noise).
+
+\paragraph{Low cut, High cut.} Sweep a high-pass around Low cut, a low-pass around High cut, by
+$\pm$ their value in octaves: the low or high end opens and closes, like a filter being turned.
+The swept filter, of the same slope as the fixed one (second-order Butterworth, 12\dB/octave), is
+then written into the response and replaces the fixed filter of the OUTPUT section, which is
+switched off; Low cut or High cut, even at ``off'', gives its centre.
+
+\paragraph{Phase.} Each target has its phase: 0, 90, 180 or 270° ahead on the LFO. Two targets at
+the same phase move together (for example: higher and brighter at the same time); 180° apart, one
+rises while the other falls (the low end opens as the high end closes); at 90°, one follows the
+other by a quarter of the period.
 
 \paragraph{Pan rate, Pan depth.} The pad swings between left and right: at 100\,\%, each side fades
 out in turn (figure~\ref{fig:stereo}).
@@ -390,7 +402,8 @@ $-3$\dB; at 100\,\%, only the pad remains (auxiliary send).
 \paragraph{Low cut, High cut.} Second-order Butterworth filters (12\dB{} per octave) on the pad
 alone: Low cut between 60 and 200\,Hz keeps the low end of pink and brown noise out of the bottom
 of the mix; High cut softens the pad and removes the high hiss. Logarithmic knobs; at their ends
-(``off''), the filter is removed.
+(``off''), the filter is removed. When the LFO sweeps one of them (MOTION section), this fixed
+filter is switched off and its frequency becomes the centre of the sweep.
 
 \paragraph{Pre-delay.} Delays the pad, by 0 to 500\,ms: it starts after the dry sound. A change
 crossfades from the old delay to the new one in 30\,ms.
@@ -416,9 +429,9 @@ Short smear & white noise, 0.4\,s, Swell 20\,\%, Decay 80\,\%, Low cut 100\,Hz, 
 Reverse swell & 2\,s, Swell 100\,\%, Decay 0\,\%, Width 120\,\% \\
 Tuned drone & COMB on A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay 30\,\%, Mix 60\,\% \\
 Chord pad & CHORD min7 on D3, Resonance 60\,\%, Vibrato 0.15, LFO 0.2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\%, Decay 50\,\% \\
-Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\%, Decay 90\,\% \\
 Grain cloud & Colour $-1.5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\%, Decay 70\,\% \\
 Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 at 0.4\,Hz, Mix 55\,\%, Decay 65\,\% \\
+Filter sweep & white noise, 5\,s, Swell 30\,\%, Decay 60\,\%, LFO 0.3\,Hz on High cut 3\,kHz ($\pm$2 oct) and Low cut 150\,Hz ($\pm$1.5 oct, phase 180°), Width 130\,\%, Mix 60\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
 \bottomrule
 \end{tabularx}
@@ -500,16 +513,19 @@ number of the path). Each goes through the following steps.
   written in the plugin: the same seed gives the same samples on Windows and on Linux); or, if
   Density is below its maximum, sparse noise: in each interval of $f_s$/Density samples, one
   impulse of random sign at a random place, of amplitude $\sqrt{f_s/\text{Density}}$ (power 1).
+  With the LFO on Density, each interval lasts $f_s / (\text{Density} \cdot 2^{\,p \cdot \ell(t)})$
+  samples ($p$ the depth, density kept within 10--10\,000), the amplitude following its length.
 \item \textbf{Colour.} The spectrum (FFT over the next power of 2) is multiplied by
   \[ \left(\max(f, 20\,\text{Hz}) / 1\,\text{kHz}\right)^{\text{Colour}/6.02}, \]
   the DC component set to zero: the power follows the slope Colour in dB per octave
   (figure~\ref{fig:spectrum}).
 \item \textbf{Combs} (Tune). For each note (one with COMB, those of the chord with CHORD):
   $y(n) = x(n) + g\, y(n - D)$, $D = f_s / f$ (linear interpolation), $f = f_0 \cdot 2^{\,\text{Vibrato}
-  \cdot \sin(2\pi\, \text{LFO rate}\; t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ with $T_{60}$ the ring
-  time; the outputs of the combs are summed. The combs run on a noise started $\min(T_{60},
-  5\,\text{s})$ before $t = 0$, so that they ring steadily from the start.
-\item \textbf{Envelope.} Without Damping, Bloom or LFO tone, the envelope $e(t)$ is applied in time:
+  \cdot \ell(t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ with $T_{60}$ the ring time of Resonance $+$
+  Reson $\cdot\, \ell(t)$ (kept within 0--100\,\%; $g$ computed again every 16 samples while the LFO
+  moves it); the outputs of the combs are summed. The combs run on a noise started $\min(T_{60},
+  5\,\text{s})$ before $t = 0$ (the longest $T_{60}$), so that they ring steadily from the start.
+\item \textbf{Envelope.} Without Damping, Bloom or LFO on the colour or the filters, the envelope $e(t)$ is applied in time:
   rise $\sin^2$ up to $T_a$ = Swell $\cdot$ Length, held at 1 until the start of the fall
   $T_f = \max(L\,(1 - \text{Decay}), T_a)$, then a straight line in dB down to $-60$\dB{} at $L$.
   Otherwise it depends on frequency and is applied by a short-time Fourier transform (square-root
@@ -518,19 +534,18 @@ number of the path). Each goes through the following steps.
   $u(f) = \log_2(f / 1\,\text{kHz})/4$ bounded to $[-1, 1]$, the fall from $\max(L\,(1 -
   \text{Decay}), T_a(f))$, an extra loss growing from the peak to $\text{Damping} \cdot \max(0,
   \log_2(f / 250\,\text{Hz}))$\dB{} at $L$, and the colour factor of the LFO
-  $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6.02}$. Then, in
-  both cases, the $\cos^2$ fade over the last $\min(20\,\text{ms}, L/10)$.
-\item \textbf{Rhythm.} Gate of period $T$ = (length of the division) $\times\, 60$ / tempo; each
-  step $k$, from $kT$: $\sin^2$ rise over $\min(\max(\text{Attack}\cdot T, 1\,\text{ms}),
-  \text{Duty}\cdot T)$, held until $\text{Duty}\cdot T$, $\cos^2$ fall over $\max(\text{Release}\cdot T,
-  1\,\text{ms})$; the gate is the largest of the levels of the current step and of the falls of the
-  previous ones. With Duty 100\,\% and no Attack, it stays open.
+  $(\max(f, 20) / 1000)^{\,\text{Tone} \cdot \ell(t)/6.02}$; with the LFO on the filters, the
+  magnitudes of the second-order Butterworth filters $1/\sqrt{1 + (f_l/f)^4}$ and
+  $1/\sqrt{1 + (f/f_h)^4}$, $f_l = \text{Low cut} \cdot 2^{\,p \cdot \ell(t)}$,
+  $f_h = \text{High cut} \cdot 2^{\,p \cdot \ell(t)}$. Then, in both cases, the $\cos^2$ fade over the last $\min(20\,\text{ms}, L/10)$.
 \item \textbf{Normalisation.} Energy 1: $\sum_n h(n)^2 = 1$.
 \end{enumerate}
 Then output $o$ is made of the direct path $\times \cos(c\,\pi/4)$ and the crossed path $\times
 \sin(c\,\pi/4)$, $c$ = Cross: an input with independent channels keeps its level. Last, the stereo
 motion multiplies the left output by $\sqrt{2} \cos a$ and the right one by $\sqrt{2} \sin a$,
 $a = \frac{\pi}{4}(1 + \text{Pan depth} \cdot \sin(2\pi\, \text{Pan rate}\; t))$.
+Everywhere, $\ell(t) = \sin(2\pi\, \text{LFO rate}\; t + \varphi)$, $\varphi$ the phase of the target
+(0, $\pi/2$, $\pi$ or $3\pi/2$).
 
 For a broadband input little correlated in time, the pad thus keeps the RMS level of the input,
 whatever the settings. An isolated note, on the other hand, is smeared: its peak falls all the
@@ -570,8 +585,8 @@ with Low cut 80\,Hz and High cut 8\,kHz.}
 \centering
 \includegraphics[width=\textwidth]{fig_traitements_en.pdf}
 \caption{Time-frequency maps of responses of the plugin (white noise): Damping and Bloom (the highs
-arrive early and die soon), chord with vibrato (the harmonics of the four notes waver), rhythmic
-gate, sparse noise (isolated impulses).}
+arrive early and die soon), chord with vibrato (the harmonics of the four notes waver), LFO on the
+colour (the pad gets brighter and darker), sparse noise (isolated impulses).}
 \label{fig:treatments}
 \end{figure}
 
@@ -656,8 +671,8 @@ as much with Cross), and two responses coexist during a change.
 
 \subsection{Change of response}\label{sec:change}
 
-The settings of the SOURCE, TUNE, ENVELOPE and MOTION sections define the response: changing one
-of them means making it again, as does a change of the tempo of the host while RHYTHM is on. A
+The settings of the SOURCE, TUNE, ENVELOPE and MOTION sections define the response, and so do Low
+cut and High cut while the LFO sweeps them: changing one of them means making it again. A
 setting without effect with the others (NOTE when TUNE is OFF, for example) does not. This work is
 done in a thread of the plugin, never in the audio processing, which goes on with the old response.
 When the new one is ready, it is taken at the start of a block of stage 2. Since the spectra of the input
@@ -679,7 +694,9 @@ crossfade.
 
 \paragraph{Filters.} Low cut and High cut are second-order Butterworth filters (Robert
 Bristow-Johnson's formulas), in double precision; their frequency is limited to 0.45\,$f_s$.
-When off, their coefficients are those of the identity: the output is then exactly the input.
+When off, their coefficients are those of the identity: the output is then exactly the input. A
+filter swept by the LFO is in the response: the fixed filter then goes to neutral (in 20\,ms, as
+soon as it is set, while the new response arrives once it is built).
 
 \paragraph{Width.} On the pad: $m = (p_L + p_R)/2$, $s = (p_L - p_R)/2 \cdot$ Width,
 $p_L' = m + s$, $p_R' = m - s$.
@@ -725,8 +742,8 @@ computation and gives the host its own state back on return.
   tail, without the space of a reverb.
 \item[Swells.] Reverse swell: each attack rises for 2\,s and then stops short. With a send placed
   a few beats before, the swell leads into the sound.
-\item[Rhythm.] Pulse gate: the pad pulses in eighth notes on the tempo; short DUTY, ATTACK and
-  RELEASE for crisp rhythmic echoes, long edges for breathing.
+\item[Sweep.] Filter sweep: the high end opens and closes slowly while the low end does the
+  opposite (phase 180°). A phase of 90° on TONE or RESON adds a shifted motion.
 \item[Realism.] DAMPING 3 to 6\dB/oct makes the tail more natural; a negative BLOOM gives a pad
   that warms up as it settles.
 \item[Low end.] Pink and brown noise give a lot of low end: Low cut 60 to 150\,Hz, especially on a
@@ -755,11 +772,16 @@ computation and gives the host its own state back on return.
   parameters: \texttt{colour}, \texttt{length}, \texttt{swell}, \texttt{decay}, \texttt{seed},
   \texttt{density}, \texttt{tune}, \texttt{note}, \texttt{chord}, \texttt{resonance},
   \texttt{damping}, \texttt{bloom}, \texttt{lforate}, \texttt{lfopitch}, \texttt{lfotone},
-  \texttt{rhythm}, \texttt{attack}, \texttt{duty}, \texttt{release}, \texttt{panrate}, \texttt{pandepth}, \texttt{cross},
+  \texttt{lforesonance}, \texttt{lfodensity}, \texttt{lfolowcut}, \texttt{lfohighcut},
+  \texttt{phasepitch}, \texttt{phasetone}, \texttt{phaseresonance}, \texttt{phasedensity},
+  \texttt{phaselowcut}, \texttt{phasehighcut} (0 to 3: 0 to 270°), \texttt{panrate}, \texttt{pandepth}, \texttt{cross},
   \texttt{predelay}, \texttt{lowcut}, \texttt{highcut}, \texttt{width}, \texttt{mix},
   \texttt{output}), numbers with a decimal point whatever the language of the system. A missing
   key takes its default value, a value out of range is brought back within the range, an unknown
   line is ignored. Copying the file is enough to share a preset.
+\item[From 1.2.] The rhythm gate (Rhythm, Attack, Duty, Release) was removed: a project or a
+  preset that used it keeps its other settings, without the gate. The LFO has new targets and a
+  phase per target, at zero by default: the sound of a setting of 1.2 does not change.
 \item[From 1.1.] Decay, which was the end level in dB, became the part of the length taken by
   the fall: a value saved in 1.1 (from $-60$ to 0) is read as 0\,\%, a pad held to the end; set it
   again.
@@ -776,7 +798,7 @@ computation and gives the host its own state back on return.
 \item A change of the settings of the response arrives with a slight delay (the time to make it
   again, up to 2.7\,s in the worst case at 192\,kHz, then at most 0.7\,s until the crossfade); in an offline render faster than real time, an
   automation of these settings may therefore land a little later than on playback.
-\item The motions (LFO, rhythm, stereo) start at the attack of each sound, not on the time of the
+\item The motions (LFO, stereo) start at the attack of each sound, not on the time of the
   song.
 \item The convolution creates no frequency: TUNE brings out what the source contains near the
   notes, it transposes nothing.

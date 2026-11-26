@@ -16,8 +16,9 @@
 #endif
 
 enum PadifierParam {
-    // inputs.  The indices of 1.0 are kept (projects of 1.0 keep their settings), except that
-    // Noise (white / pink) became Colour; the parameters of 1.1 follow.
+    // inputs.  The indices of 1.0 are kept, except that Noise (white / pink) became Colour; the
+    // parameters of 1.1 follow.  After 1.2.0: the rhythm gate (Rhythm, Duty, Attack, Release) and the
+    // tempo of the host removed, without compatibility (no project uses the releases).
     kParamColour = 0,     // spectral slope of the noise, dB / octave (-3 pink, 0 white)
     kParamLength,         // length of the impulse response, s
     kParamSwell,          // rise time of the envelope, % of the length
@@ -40,20 +41,25 @@ enum PadifierParam {
     kParamLfoRate,        // LFO along the response, Hz
     kParamLfoPitch,       // depth on the note of the combs, semitones
     kParamLfoTone,        // depth on the spectral slope, dB / octave
-    kParamRhythm,         // gate along the response, division of the beat (kDivisions; 0 off)
-    kParamDuty,           // open part of each period of the gate, %
     kParamPanRate,        // stereo motion along the response, Hz
     kParamPanDepth,       // depth of the stereo motion, %
     kParamCross,          // true stereo: left -> right and right -> left, %
     kParamPredelay,       // delay of the wet signal, ms
-    // 1.1.1
-    kParamAttack,         // rise at the start of each step of the gate, % of the step
-    kParamRelease,        // fall after the open part of each step, % of the step
+    // after 1.2.0: more targets of the LFO, and a phase per target (kPhaseNames)
+    kParamLfoResonance,   // depth on Resonance, % (of the Resonance scale)
+    kParamLfoDensity,     // depth on Density, octaves
+    kParamLfoLowCut,      // depth on a high-pass of the response around Low cut, octaves
+    kParamLfoHighCut,     // depth on a low-pass of the response around High cut, octaves
+    kParamPhasePitch,     // phase of the LFO on the pitch (vibrato), 0 .. 3: 0, 90, 180, 270 degrees
+    kParamPhaseTone,      // on the tone
+    kParamPhaseResonance, // on Resonance
+    kParamPhaseDensity,   // on Density
+    kParamPhaseLowCut,    // on the high-pass
+    kParamPhaseHighCut,   // on the low-pass
     // outputs
     kParamMeterIn,        // input peak, dBFS
     kParamMeterWet,       // wet peak, dBFS
     kParamMeterOut,       // output peak, dBFS
-    kParamTempo,          // tempo given by the host, BPM (for the interface)
     kParamCount
 };
 
@@ -83,35 +89,45 @@ static const PadifierRange kPadifierRanges[kParamCount] = {
     {  0.05f,    10.0f,     0.5f },   // LFO rate, Hz
     {   0.0f,    12.0f,     0.0f },   // LFO pitch, semitones
     {   0.0f,     6.0f,     0.0f },   // LFO tone, dB / octave
-    {   0.0f,    12.0f,     0.0f },   // rhythm: off
-    {   5.0f,   100.0f,    50.0f },   // duty, %
     {  0.05f,    10.0f,     0.3f },   // pan rate, Hz
     {   0.0f,   100.0f,     0.0f },   // pan depth, %
     {   0.0f,   100.0f,     0.0f },   // cross, %
     {   0.0f,   500.0f,     0.0f },   // pre-delay, ms
-    {   0.0f,   100.0f,    10.0f },   // attack, % of the step
-    {   0.0f,   100.0f,    25.0f },   // release, % of the step
+    {   0.0f,   100.0f,     0.0f },   // LFO resonance, %
+    {   0.0f,     4.0f,     0.0f },   // LFO density, octaves
+    {   0.0f,     4.0f,     0.0f },   // LFO low cut, octaves
+    {   0.0f,     4.0f,     0.0f },   // LFO high cut, octaves
+    {   0.0f,     3.0f,     0.0f },   // phase pitch
+    {   0.0f,     3.0f,     0.0f },   // phase tone
+    {   0.0f,     3.0f,     0.0f },   // phase resonance
+    {   0.0f,     3.0f,     0.0f },   // phase density
+    {   0.0f,     3.0f,     0.0f },   // phase low cut
+    {   0.0f,     3.0f,     0.0f },   // phase high cut
     { -60.0f,     6.0f,   -60.0f },   // meter in
     { -60.0f,     6.0f,   -60.0f },   // meter wet
     { -60.0f,     6.0f,   -60.0f },   // meter out
-    {  20.0f,   300.0f,   120.0f },   // tempo
 };
 
 static const float kLowCutOff = 20.0f;       // low cut at its minimum: no filter
 static const float kHighCutOff = 20000.0f;   // high cut at its maximum: no filter
 static const float kDensitySmooth = 10000.0f; // density at its maximum: Gaussian noise
-static const float kDefaultTempo = 120.0f;   // when the host gives none
 
-// Parameters that define the impulse response (a change rebuilds it).  The tempo also does,
-// while the rhythm is on.
+// Parameters that may define the impulse response (a change rebuilds it if it changes the settings
+// of PadifierIR::fromParams).  Low cut and High cut do while the LFO is on them.
 static inline bool isIRParam(const int i)
 {
     return i == kParamColour || i == kParamLength || i == kParamSwell || i == kParamDecay || i == kParamSeed
-        || (i >= kParamDensity && i <= kParamCross) || i == kParamAttack || i == kParamRelease;
+        || (i >= kParamDensity && i <= kParamCross) || (i >= kParamLfoResonance && i <= kParamPhaseHighCut)
+        || i == kParamLowCut || i == kParamHighCut;
 }
 
+// while the LFO is on a filter, the filter of the response swept around Low cut (High cut)
+// replaces the fixed one of the pad
+static inline bool lowCutInResponse(const float* const p) { return p[kParamLfoLowCut] > 0.0f; }
+static inline bool highCutInResponse(const float* const p) { return p[kParamLfoHighCut] > 0.0f; }
+
 // ------------------------------------------------------------------------------------------------
-// Chords (semitones above the root) and divisions of the beat for the rhythm
+// Chords (semitones above the root)
 
 struct PadifierChord { const char* name; int count; int steps[4]; };
 
@@ -128,16 +144,11 @@ static const PadifierChord kChords[] = {
 };
 static const int kChordCount = sizeof(kChords) / sizeof(kChords[0]);
 
-struct PadifierDivision { const char* name; double beats; };   // beats: quarter notes
-
-static const PadifierDivision kDivisions[] = {
-    { "off", 0.0 }, { "1/1", 4.0 }, { "1/2", 2.0 }, { "1/4", 1.0 }, { "1/8", 0.5 }, { "1/16", 0.25 },
-    { "1/32", 0.125 }, { "1/4.", 1.5 }, { "1/8.", 0.75 }, { "1/16.", 0.375 }, { "1/4T", 2.0 / 3.0 },
-    { "1/8T", 1.0 / 3.0 }, { "1/16T", 1.0 / 6.0 },
-};
-static const int kDivisionCount = sizeof(kDivisions) / sizeof(kDivisions[0]);
-
 static const char* const kTuneNames[] = { "off", "comb", "chord" };
+static const char* const kPhaseNames[] = { "0", "90", "180", "270" };   // degrees
+static const int kPhaseCount = 4;
+static const int kLfoPhaseTargets = kParamPhaseHighCut - kParamPhasePitch + 1;   // pitch, tone, resonance,
+                                                                                 // density, low cut, high cut
 
 // ------------------------------------------------------------------------------------------------
 // Factory presets: values of all the inputs (the bypass slot is ignored).  Set from the laws,
@@ -196,15 +207,16 @@ static const PadifierPreset kPadifierPresets[] = {
         { kParamTune, 2 }, { kParamNote, 50 }, { kParamChord, 6 }, { kParamResonance, 60 },
         { kParamLowCut, 80 }, { kParamWidth, 130 }, { kParamMix, 60 }, { kParamLfoRate, 0.2f },
         { kParamLfoPitch, 0.15f } }),
-    makePreset("Pulse gate", { { kParamLength, 4 }, { kParamSwell, 10 }, { kParamDecay, 90 },
-        { kParamRhythm, 4 }, { kParamDuty, 40 }, { kParamAttack, 10 }, { kParamRelease, 30 }, { kParamLowCut, 80 }, { kParamMix, 50 },
-        { kParamPanDepth, 60 }, { kParamPanRate, 1 } }),
     makePreset("Grain cloud", { { kParamColour, -1.5f }, { kParamLength, 3 }, { kParamSwell, 30 },
         { kParamDecay, 70 }, { kParamDensity, 40 }, { kParamWidth, 150 }, { kParamMix, 45 },
         { kParamCross, 60 } }),
     makePreset("Blooming", { { kParamLength, 5 }, { kParamSwell, 35 }, { kParamDecay, 65 },
         { kParamBloom, -60 }, { kParamDamping, 4 }, { kParamLfoRate, 0.4f }, { kParamLfoTone, 2 },
         { kParamLowCut, 60 }, { kParamMix, 55 } }),
+    makePreset("Filter sweep", { { kParamColour, 0 }, { kParamLength, 5 }, { kParamSwell, 30 },
+        { kParamDecay, 60 }, { kParamSeed, 6 }, { kParamLowCut, 150 }, { kParamHighCut, 3000 },
+        { kParamWidth, 130 }, { kParamMix, 60 }, { kParamLfoRate, 0.3f }, { kParamLfoLowCut, 1.5f },
+        { kParamPhaseLowCut, 2 }, { kParamLfoHighCut, 2 } }),
     makePreset("Send (100 % wet)", { { kParamLowCut, 60 }, { kParamMix, 100 } }),
 };
 
