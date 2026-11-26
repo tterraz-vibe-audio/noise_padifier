@@ -142,10 +142,12 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   préfixe neuf : VST3 et CLAP identiques à `bin/windows/`, manuels identiques, licences, raccourcis
   du menu Démarrer, version 1.1.0 au registre, puis tout retiré.
 - Interface 1.2.0 affichée par la version autonome Windows sous Wine, deux thèmes (`doc/captures/` :
-  Chord pad en Dusk, Blooming en Pearl avec la bulle de BLOOM). `./build.sh` complet sans
-  avertissement ; validateur 47/47 Linux et Windows (1.2.0) ; manuels sans avertissement LaTeX.
-- **Non vérifié** : écoute ; vrai logiciel audio ; clics et saisie dans un hôte ; installateur sur
-  un vrai Windows.
+  Chord pad en Dusk, Blooming en Pearl avec la bulle de BLOOM ; en 1.3.0, Filter sweep en Pearl
+  avec la bulle de la phase de LOW CUT). `./build.sh` complet sans avertissement ; validateur
+  47/47 Linux et Windows (1.3.0) ; manuels sans avertissement LaTeX.
+- **Non vérifié** : écoute (dont les nouvelles cibles du LFO et Filter sweep) ; vrai logiciel
+  audio ; clics et saisie dans un hôte (cases de phase jamais cliquées hors captures) ; installateur
+  sur un vrai Windows.
 
 ## Pour reprendre
 - Dossier créé en session 69 (2026-11-26) à côté de `tinplate_vst3/`, dont il reprend la
@@ -195,3 +197,9 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   nouveau numéro.
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).
+- Ouvert depuis la 1.3.0 (non traité, à proposer si l'écoute le demande) : au réglage d'un LFO de
+  filtre, le filtre fixe passe au neutre en 20 ms alors que la réponse balayée arrive après sa
+  construction (bref écart de timbre, documenté dans les manuels) ; séparateur de TUNE descendu à
+  394 pour la case de phase de VIBRATO, plus aligné sur celui d'ENVELOPE (370) ; phases en crans
+  de 90° seulement (bouton continu écarté par l'utilisateur) ; le panoramique garde sa propre
+  vitesse (choix : un LFO de timbre, un mouvement stéréo à part).
