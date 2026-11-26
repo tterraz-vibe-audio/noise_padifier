@@ -41,7 +41,7 @@ replaced by the envelope.
 
 ## Installation
 
-**Windows**: run `Noise-Padifier-1.0.0-setup.exe` (VST3, optional CLAP and user manual).
+**Windows**: run `Noise-Padifier-1.0.1-setup.exe` (VST3, optional CLAP and user manuals).
 Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common Files\VST3\` and
 `noise_padifier.clap` to `C:\Program Files\Common Files\CLAP\`.
 
@@ -50,7 +50,8 @@ Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common File
 
 ## Documentation
 
-- **User manual** (French): [`doc/manuel.pdf`](doc/manuel.pdf): every setting, the presets, tips,
+- **User manual**: [`doc/manual.pdf`](doc/manual.pdf) (English), [`doc/manuel.pdf`](doc/manuel.pdf)
+  (French): every setting, the presets, tips,
   and a description of the algorithm (impulse response, partitioned convolution, crossfade of a
   new response, mix law, measured cost), with figures computed from the plugin's own code
   (`doc/figures.py`; impulse responses through `tools/ir.cpp`).
@@ -61,10 +62,12 @@ Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common File
 From Linux with MinGW-w64 (`-posix`), git, and optionally NSIS: `./build.sh` clones DPF at the
 tested commit, applies `patches/`, runs the tests, and builds Windows and Linux binaries and the
 installer into `bin/` (`BENCH=1 ./build.sh` also prints the cost of the DSP).
-The manual needs `gcc`, `g++`, `python3-numpy`, `python3-matplotlib` and `pdflatex`:
+The manuals need `gcc`, `g++`, `python3-numpy`, `python3-matplotlib` and `pdflatex`
+(`figures.py` writes the figures of both languages):
 
 ```sh
-cd doc && python3 figures.py && pdflatex manuel.tex && pdflatex manuel.tex && pdflatex manuel.tex
+cd doc && python3 figures.py
+for m in manual manuel; do pdflatex $m.tex && pdflatex $m.tex && pdflatex $m.tex; done
 ```
 
 ## Tests

@@ -85,14 +85,15 @@ Code : `plugin/PadifierUI.cpp`, `PadifierPrefs.hpp`, `PadifierUserPresets.hpp`.
    et des préréglages ;
 3. Windows → `bin/windows/`, Linux → `bin/linux/` ;
 4. installateur Windows (`installer/padifier.nsi`, `makensis`) →
-   `bin/Noise-Padifier-1.0.0-setup.exe` (VST3 imposé, CLAP et manuel PDF en option, cochés par
-   défaut ; le manuel va dans `Program Files\Padifier\Noise-Padifier-manuel.pdf`, avec un
-   raccourci dans le menu Démarrer). Le PDF n'est pas refait par `build.sh` : recompiler
-   `doc/manuel.tex` avant si le manuel a changé.
+   `bin/Noise-Padifier-1.0.1-setup.exe` (VST3 imposé, CLAP et manuels PDF en option, cochés par
+   défaut ; les manuels vont dans `Program Files\Padifier\Noise-Padifier-manual.pdf` (anglais) et
+   `Noise-Padifier-manuel.pdf` (français), avec deux raccourcis dans le menu Démarrer). Les PDF ne
+   sont pas refaits par `build.sh` : recompiler `doc/manual.tex` et `doc/manuel.tex` avant si un
+   manuel a changé.
 
-**Manuel** (français, 12 pages : réglages, préréglages, conseils, algorithme avec schémas et
+**Manuels** (anglais `doc/manual.pdf`, source `doc/manual.tex`, depuis la 1.0.1 ; français, 12 pages : réglages, préréglages, conseils, algorithme avec schémas et
 figures) : `doc/manuel.pdf` ; source `doc/manuel.tex` (pdflatex ×3 dans `doc/`, sans
-avertissement), figures `doc/figures.py` (réponses impulsionnelles du greffon lui-même via
+avertissement), figures `doc/figures.py` (`fig_*.pdf` en français, `fig_*_en.pdf` en anglais ; réponses impulsionnelles du greffon lui-même via
 `tools/ir.cpp`, compilé dans `build/` par le script ; enveloppe, loi du mélange et filtres
 réécrits en NumPy ; convolutions par FFT NumPy). **README.md** en anglais pour GitHub.
 
@@ -129,7 +130,10 @@ réécrits en NumPy ; convolutions par FFT NumPy). **README.md** en anglais pour
   `COPYING`, `THIRD_PARTY_LICENSES.txt` et le manuel, et le manuel seul ; notes en anglais
   (`build/release/notes.md`) ; étiquette annotée `v1.0.0` poussée, puis `/usr/bin/gh release create`.
   **La version 1.0.0 est publiée** : tout changement livré ensuite demande un nouveau numéro
-  (`getVersion`, installateur, documents).
+  (`getVersion`, installateur, `\author` des deux manuels, README).
+- **Release `v1.0.1`** (2026-11-26) : manuel anglais (`doc/manual.pdf`, dans l'installateur et les
+  archives avec le manuel français) ; DSP et interface inchangés hors numéro de version. Même
+  procédure ; le manuel anglais est aussi joint seul.
 - Captures : `CXXFLAGS="-DPADIFIER_UI_DEMO=<zone> -DPADIFIER_UI_DEMO_THEME=<0|1>"`, version
   autonome (`make -C plugin jack BUILD_DIR_SUFFIX=-demo-<x> DPF_TARGET_DIR=../build-demo-<x>/bin`
   avec les variables MinGW de `build.sh`) sous Wine, `import -window` sur la fenêtre « Noise

@@ -1,0 +1,554 @@
+% Noise Padifier - user manual (English; French version: manuel.tex).
+% pdflatex manual.tex (three passes); figures: python3 figures.py (doc/fig_*_en.pdf).
+% Copyright (C) 2026 Padifier authors - SPDX-License-Identifier: GPL-3.0-or-later
+\documentclass[a4paper,11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{amber}{HTML}{96691A}
+\definecolor{violet}{HTML}{6246AA}
+\definecolor{ink}{HTML}{26203A}
+\definecolor{paper}{HTML}{F4F2F8}
+
+\newcommand{\ctl}[1]{\textsf{\textbf{#1}}}   % name of an element of the interface
+\newcommand{\dB}{\,dB}
+\newcommand{\dBFS}{\,dBFS}
+\setlist{itemsep=1pt,topsep=3pt}
+\emergencystretch=3em
+\graphicspath{{./}{captures/}}
+
+\title{\textsf{NOISE} \textcolor{violet}{\textbf{PADIFIER}}\\[4pt]
+\large User manual and description of the algorithm}
+\author{Version 1.0.1}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\includegraphics[width=0.92\textwidth]{capture_dusk.png}
+\end{center}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ==============================================================================================
+\section{Overview}
+
+Noise Padifier turns any sound into a pad. The signal is convolved with an impulse response made
+of \textbf{white or pink noise} under an adjustable \textbf{envelope}, 0.1 to 10\,s long: every
+note, every attack, is smeared over the whole length of that response. Since noise contains every
+frequency, the timbre of the source is kept (its harmonics stay where they are) but its shape in
+time is gone: a short note becomes a sustained sound that rises and dies away along the envelope
+(figure~\ref{fig:pad}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_pad_en.pdf}
+\caption{Two short notes (top) and what the Default preset makes of them, pad only (bottom): the
+harmonics are kept, each note now lasts 3\,s, rises in 0.75\,s, then decays.}
+\label{fig:pad}
+\end{figure}
+
+The two channels are convolved with two different noises: even a mono source comes out wide.
+Around the convolution: low cut and high cut on the pad, stereo width, mix with the dry sound,
+output gain, presets, A/B comparison.
+
+\paragraph{Formats.} VST3 and CLAP for 64-bit Windows; VST3, CLAP and LV2 for Linux. The plugin is
+stereo (two inputs, two outputs). Its \textbf{latency is 256 samples} (5.3\,ms at 48\,kHz),
+reported to the host, which compensates it.
+
+\paragraph{Licence.} GPL 3 or later (file \texttt{COPYING}). The interface and the plugin formats
+rely on DPF (ISC licence); the Fourier transforms on pffft by Julien Pommier (FFTPACK licence,
+BSD-like).
+
+% ==============================================================================================
+\section{Installation}
+
+\paragraph{Windows.} Run the installer \texttt{Noise-Padifier-1.0.1-setup.exe}. It installs the
+VST3 (required) and, if ticked, the CLAP and the user manuals (English and French), then adds an
+uninstaller (``Apps and features''). By hand, copy:
+\begin{itemize}
+\item the \texttt{noise\_padifier.vst3} folder to \verb|C:\Program Files\Common Files\VST3\|;
+\item \texttt{noise\_padifier.clap} to \verb|C:\Program Files\Common Files\CLAP\|.
+\end{itemize}
+
+\paragraph{Linux.} Copy \texttt{noise\_padifier.vst3} to \verb|~/.vst3/|,
+\texttt{noise\_padifier.clap} to \verb|~/.clap/| or \texttt{noise\_padifier.lv2} to
+\verb|~/.lv2/|.
+
+Then rescan the plugins in your host. The uninstaller leaves the preferences and the presets of
+the user in place (section~\ref{sec:files}).
+
+% ==============================================================================================
+\section{Getting started in one minute}
+
+\begin{enumerate}
+\item \textbf{As an insert} on a track: the \ctl{Default} preset is loaded (pink noise, 3\,s,
+  Mix 50\,\%). \textbf{On an auxiliary send}: choose \ctl{Send (100 \% wet)}, which returns the
+  pad only.
+\item Set the length of the pad with \ctl{LENGTH}, its rise with \ctl{SWELL} and its end with
+  \ctl{DECAY}; the curve at the bottom left shows the resulting envelope.
+\item Choose the colour: \ctl{PINK} (warm, full) or \ctl{WHITE} (bright, airy); refine with
+  \ctl{LOW CUT} and \ctl{HIGH CUT}.
+\item Dose with \ctl{MIX}, widen with \ctl{WIDTH}. If you do not like the grain of the noise,
+  try another value of \ctl{SEED}.
+\end{enumerate}
+
+% ==============================================================================================
+\section{The interface}
+
+The window (900 × 600 points, resizable with its proportions kept, sharp on high-density screens)
+reads from left to right in the order of the signal: three numbered sections linked by arrows,
+then two plots at the bottom. Every element has a tooltip on hover; for a knob, its title gives the
+detailed value.
+
+\begin{center}
+\includegraphics[width=0.8\textwidth]{capture_pearl.png}\\[2pt]
+\small Light theme \ctl{PEARL}, tooltip of the envelope plot.
+\end{center}
+
+\subsection{Header}
+\begin{description}
+\item[Presets.] Drop-down list: a click opens it; it shows the factory presets (\ctl{FACTORY}), a
+  line, your presets (\ctl{USER}, in alphabetical order), a line, then \ctl{Save current
+  settings\ldots}. The current preset is marked with a dot; ``*'' after its name means a setting
+  was changed since it was loaded. The mouse wheel over the closed box steps to the next or
+  previous preset. Details in section~\ref{sec:presets}.
+\item[A | B and A>B.] Two sets of settings to compare: a click on \ctl{A} or \ctl{B} switches (the
+  set you leave is kept, the other one is loaded; on its first visit, B starts as a copy of A).
+  \ctl{A>B} (or \ctl{B>A}) copies the current set into the other. Both sets are saved with the
+  project.
+\item[DUSK | PEARL.] Dark or light theme, with no effect on the sound; it is a preference of the
+  computer, shared by all instances and all projects.
+\item[ACTIVE / BYPASSED.] The bypass declared to the host (section~\ref{sec:smoothing}).
+\end{description}
+
+\subsection{Section 1: NOISE}
+The \ctl{WHITE | PINK} selector, a short sentence and a sketch of the spectrum of the noise (from
+20\,Hz to 20\,kHz), then the \ctl{SEED} knob.
+
+\subsection{Section 2: ENVELOPE}
+\ctl{LENGTH}, \ctl{SWELL} and \ctl{DECAY}. Below: the time of the peak of the envelope (large),
+the end of the response and its level, the number of samples of the response per channel and the
+latency, at the current sample rate.
+
+\subsection{Section 3: OUTPUT}
+\ctl{MIX}, \ctl{WIDTH}, \ctl{OUTPUT}, \ctl{LOW CUT}, \ctl{HIGH CUT}, then three peak meters:
+\ctl{IN} (input), \ctl{PAD} (pad alone, after the filters and Width, before the mix), \ctl{OUT}
+(output), in dBFS; after a peak, the display falls back with a time constant of 0.25\,s.
+
+\subsection{Plots}
+\begin{itemize}
+\item on the left, the \textbf{envelope} of the response against time (seconds, from 0 to
+  Length; level from 0 to $-60$\dB), the peak dashed;
+\item on the right, the \textbf{spectrum of the pad} (20\,Hz to 20\,kHz): colour of the noise and
+  filters, in dB, the highest point at 0\dB.
+\end{itemize}
+
+\subsection{Using the knobs}
+\begin{itemize}
+\item drag vertically; \textsf{Shift} for fine adjustment;
+\item mouse wheel (\textsf{Shift}: fine);
+\item double-click or \textsf{Ctrl}+click: default value;
+\item right-click: type the value (\textsf{Enter} confirms, \textsf{Escape} cancels; a comma is
+  accepted as the decimal separator).
+\end{itemize}
+
+% ==============================================================================================
+\section{The settings}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+Setting & Range & Default & Role \\
+\midrule
+Noise & White, Pink & Pink & colour of the noise \\
+Seed & 1--99 & 1 & draw of the noise \\
+Length & 0.1--10\,s & 3\,s & length of the response \\
+Swell & 0--100\,\% & 25\,\% & rise of the envelope, as a part of the length \\
+Decay & $-60$--0\dB & $-30$\dB & level of the envelope at the end \\
+Mix & 0--100\,\% & 50\,\% & part of the pad (constant power) \\
+Width & 0--200\,\% & 100\,\% & stereo width of the pad \\
+Low cut & 20\,Hz (off)--1\,kHz & off & 12\dB/octave high-pass on the pad \\
+High cut & 1--20\,kHz (off) & off & 12\dB/octave low-pass on the pad \\
+Output & $-24$--+12\dB & 0\dB & gain of the whole output \\
+Bypass & on/off & off & unprocessed (delayed) input, 10\,ms crossfade \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Noise.} \ctl{WHITE}: white noise, the same energy at every frequency; the pad is
+bright, airy, and the hiss of the noise is more audible in the highs. \ctl{PINK}: pink noise,
+$-3$\dB{} per octave from 20\,Hz up (the same energy per octave); the pad is warmer and fuller,
+close to the balance of a reverb. Figure~\ref{fig:spectrum}.
+
+\paragraph{Seed.} The noise comes from a pseudo-random generator: each value of Seed gives another
+noise, with the same colour and the same envelope. The differences are details (the ``grain'', a
+few frequencies a little more or a little less present); the same value always gives exactly the
+same response, on any computer.
+
+\paragraph{Length.} Length of the impulse response, hence of the smearing: a few hundred
+milliseconds thicken the sound (smear); several seconds make a pad. The knob is logarithmic.
+
+\paragraph{Swell.} Time of the peak of the envelope, as a percentage of the length. At 0, the pad
+starts with the sound; at 25\,\% of a 3\,s response, it rises for 0.75\,s; at 100\,\%, it rises
+over the whole response and then stops short (a ``reverse reverb'' effect).
+
+\paragraph{Decay.} Level of the envelope at the end of the response, after the peak. The decay is a
+straight line in decibels: at $-60$\dB, the pad dies away like a reverb; at 0\dB, it stays at the
+same level to the end (a held pad, cut by a fade of 20\,ms at most). Figure~\ref{fig:envelopes}.
+
+\paragraph{Mix.} Constant-power mix of the dry sound and the pad: pad $= \sin(\frac{\pi}{2}\,m)$,
+dry $= \cos(\frac{\pi}{2}\,m)$, $m$ = Mix / 100 (figure~\ref{fig:mix}). At 50\,\%, both are at
+$-3$\dB; at 100\,\%, only the pad remains (auxiliary send). Since the pad is not correlated with
+the dry sound, the overall level stays roughly constant.
+
+\paragraph{Width.} Stereo width of the pad alone: 0\,\% makes it mono, 100\,\% leaves it as the
+convolution makes it (two independent noises, hence very wide), 200\,\% doubles the difference
+between the channels. The dry sound is not touched.
+
+\paragraph{Low cut, High cut.} Second-order Butterworth filters (12\dB{} per octave) on the pad
+alone. Pink noise brings a lot of low end: Low cut between 60 and 200\,Hz keeps it out of the
+bottom of the mix. High cut softens the pad and removes the high hiss, especially with white noise.
+Both knobs are logarithmic; at their ends (20\,Hz for Low cut, 20\,kHz for High cut, ``off''), the
+filter is removed.
+
+\paragraph{Output.} Gain of the whole output (dry and pad), after the mix.
+
+% ==============================================================================================
+\section{Presets}\label{sec:presets}
+
+\subsection{Factory presets}
+\begin{center}
+\small
+\begin{tabular}{@{}l l r r r r r r r r@{}}
+\toprule
+Name & Noise & Length & Swell & Decay & Seed & Low cut & High cut & Width & Mix \\
+\midrule
+Default           & Pink  & 3   & 25  & $-30$ & 1 & off & off   & 100 & 50 \\
+Soft pad          & Pink  & 4   & 50  & $-24$ & 1 & 80  & 8000  & 120 & 60 \\
+Endless wash      & Pink  & 8   & 40  & $-6$  & 7 & 60  & 12000 & 140 & 70 \\
+Dark cloud        & Pink  & 6   & 60  & $-18$ & 3 & 40  & 3000  & 100 & 60 \\
+Airy halo         & White & 3   & 30  & $-36$ & 5 & 400 & off   & 150 & 35 \\
+Short smear       & White & 0.4 & 20  & $-40$ & 2 & 100 & 14000 & 100 & 30 \\
+Reverse swell     & Pink  & 2   & 100 & 0     & 4 & 60  & 16000 & 120 & 50 \\
+Send (100 \% wet) & Pink  & 3   & 25  & $-30$ & 1 & 60  & off   & 100 & 100 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Length in seconds, Swell, Width and Mix in \%, Decay in dB, filters in Hz; Output at 0\dB{}
+everywhere. These presets were set from the laws of the settings, \textbf{not by ear}. They are
+also offered to the host (list of programs).
+
+\subsection{Your presets}
+\begin{description}
+\item[Save.] In the list, \ctl{Save current settings\ldots}, then type the name directly in the
+  box (offered: the name of your current preset). \textsf{Enter} saves, \textsf{Escape} or a click
+  elsewhere cancels. A tooltip says what \textsf{Enter} will do: save, replace your preset of the
+  same name (upper and lower case alike), or refuse: name of a factory preset, invalid name, folder
+  not writable. Names: 1 to 24 printable ASCII characters, without \verb+< > : " / \ | ? *+,
+  without a space or a dot at the start or the end, and not a reserved Windows name (\texttt{CON},
+  \texttt{NUL}\ldots).
+\item[Delete.] Hover your preset in the list: a cross appears on the right. A first click shows
+  ``delete?'', a second one deletes (no undo).
+\item[Scope.] Your presets are shared by all projects, all instances and all hosts of the
+  computer; the list is read again each time it opens, the file each time it is loaded. The host
+  only sees the factory presets; its own presets (for example \texttt{.vstpreset}) remain possible
+  and independent.
+\end{description}
+Bypass, which is for listening, belongs to no preset and to no A/B set.
+
+% ==============================================================================================
+\section{The algorithm}
+
+This section describes exactly what the plugin computes (files
+\nolinkurl{plugin/PadifierPlugin.cpp}, \nolinkurl{plugin/NoiseIR.hpp} and
+\nolinkurl{plugin/Convolver.hpp}). The impulse responses of the figures are made by the code of
+the plugin itself.
+
+\subsection{Signal flow}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=4mm and 2.6mm,
+  blk/.style={draw=ink, rounded corners=2pt, fill=paper, minimum height=8mm, align=center,
+              font=\scriptsize\sffamily, inner sep=2.5pt},
+  core/.style={blk, fill=violet!12, draw=violet},
+  arr/.style={-{Stealth[length=1.8mm]}, ink}]
+\node[blk] (in) {input\\$x_L, x_R$};
+\node[core, right=of in] (conv) {convolution\\$x_L * h_L$, $x_R * h_R$};
+\node[blk, right=of conv] (lc) {Low cut};
+\node[blk, right=of lc] (hc) {High cut};
+\node[blk, right=of hc] (wd) {Width};
+\node[blk, right=of wd] (mix) {mix\\Mix};
+\node[blk, right=of mix] (out) {Output};
+\node[blk, right=of out] (byp) {Bypass\\(crossfade)};
+\node[blk, right=of byp] (s) {output};
+\node[core, above=5mm of conv, xshift=10mm] (ir) {response $h_L, h_R$: noise under an envelope (Noise, Seed, Length, Swell, Decay)};
+\node[blk, below=7mm of lc] (dly) {delay of 256 samples};
+\draw[arr] (in) -- (conv); \draw[arr] (conv) -- (lc); \draw[arr] (lc) -- (hc);
+\draw[arr] (hc) -- (wd); \draw[arr] (wd) -- (mix); \draw[arr] (mix) -- (out);
+\draw[arr] (out) -- (byp); \draw[arr] (byp) -- (s);
+\draw[arr] (ir.south -| conv) -- (conv);
+\draw[arr] (in.south) |- (dly.west);
+\draw[arr, dashed] (dly.east) -| node[pos=0.25, below, font=\scriptsize] {delayed dry} (mix.south);
+\draw[arr, dashed] (dly.east) -| (byp.south);
+\end{tikzpicture}
+\end{center}
+
+Each channel is convolved with its own response: left with $h_L$, right with $h_R$ (no
+crossing). The dry sound is delayed by the latency of the convolution, 256 samples, to stay
+aligned with the pad; the bypass returns this same delayed dry sound, so that the latency does not
+change when switching.
+
+\subsection{The impulse response}\label{sec:response}
+
+For a channel $c$ (0 left, 1 right), at the sample rate $f_s$:
+\[
+h_c(n) = k_c \; e\!\left(\tfrac{n}{f_s}\right) w_c(n), \qquad n = 0 \ldots N-1, \quad
+N = \mathrm{round}(\text{Length} \cdot f_s).
+\]
+
+\paragraph{The noise $w_c$.} Gaussian noise of variance 1: Box-Muller method on the SplitMix64
+generator, seeded from (Seed, $c$). This generator is written in the plugin (not the one of the
+compiler's library): the same seed gives the same samples on Windows and on Linux. For pink noise,
+white noise is drawn over $N_f \geq N$ samples ($N_f$ a power of 2), transformed by FFT, each
+component of frequency $f$ multiplied by $1/\sqrt{\max(f, 20\,\text{Hz})}$ (the DC component set to
+zero), then brought back to time; the first $N$ samples are kept. The power spectrum thus falls by
+3\dB{} per octave above 20\,Hz and stays flat below (figure~\ref{fig:spectrum}).
+
+\paragraph{The envelope $e(t)$.} With $L$ = Length, $T_a$ = Swell $\cdot L$ and
+$T_f = \min(20\,\text{ms}, L/10)$, $e$ is the product of three terms:
+\begin{align*}
+\text{rise} &: \sin^2\!\left(\tfrac{\pi}{2}\,\tfrac{t}{T_a}\right) \text{ for } t < T_a ;\\
+\text{decay} &: 10^{\,\text{Decay}/20 \;\cdot\; (t - T_a)/(L - T_a)} \text{ for } t \geq T_a ;\\
+\text{final fade} &: \cos^2\!\left(\tfrac{\pi}{2}\,\tfrac{t - (L - T_f)}{T_f}\right) \text{ for } t > L - T_f .
+\end{align*}
+The decay is a straight line in dB, from 0\dB{} at the peak to Decay at the end. The final fade
+keeps the response from ending on a step, which would be heard as a click at the end of every note
+when Decay is close to 0\dB{} or Swell close to 100\,\% (figure~\ref{fig:envelopes}).
+
+\paragraph{The normalisation $k_c$.} Each response is scaled to an energy of 1:
+$\sum_n h_c(n)^2 = 1$. For a broadband input little correlated in time (noise, a dense mix), the
+pad then keeps the RMS level of the input, whatever the length and the envelope. An isolated note,
+on the other hand, is smeared: its peak falls all the more as the response is long, its energy is
+kept. A sustained sine comes out with a gain that varies a little from one frequency to the next
+(the spectrum of a noise is never perfectly smooth: a few dB around the mean); changing Seed moves
+these small deviations.
+
+The two channels have independent noises (measured correlation below 0.01 for 3\,s): the output
+is decorrelated between left and right, hence its width even for a mono source.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_reponse_en.pdf}
+\caption{Impulse response of the Default preset, left channel, with white and with pink noise,
+and its envelope. Pink noise, rich in lows, wavers more slowly.}
+\label{fig:response}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_enveloppes_en.pdf}
+\caption{Envelope for a length of 3\,s: effect of Swell (left) and of Decay (right).}
+\label{fig:envelopes}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_spectre_en.pdf}
+\caption{Spectrum of the response (mean of both channels, 4\,s, flat envelope), measured on the
+responses of the plugin and smoothed over a sixth of an octave; dashed, pink noise with Low cut
+80\,Hz and High cut 8\,kHz.}
+\label{fig:spectrum}
+\end{figure}
+
+\subsection{The convolution}\label{sec:convolution}
+
+A 10\,s response at 48\,kHz holds 480\,000 samples: direct convolution would cost nearly a billion
+multiplications per second and per channel. The plugin computes it in the frequency domain, by
+blocks (\emph{uniformly partitioned convolution}, overlap-save, real FFTs of pffft), in two stages:
+
+\begin{center}
+\begin{tikzpicture}[x=0.55mm, y=1mm]
+\fill[violet!25] (0,0) rectangle (32,6);
+\foreach \i in {0,4,...,28} \draw[violet] (\i,0) rectangle (\i+4,6);
+\fill[amber!25] (32,0) rectangle (240,6);
+\foreach \i in {32,48,...,224} \draw[amber] (\i,0) rectangle (\i+16,6);
+\draw[ink] (0,0) rectangle (240,6);
+\node[font=\scriptsize, above] at (16,6) {head};
+\node[font=\scriptsize, above] at (136,6) {tail};
+\node[font=\scriptsize, below] at (0,0) {0};
+\node[font=\scriptsize, below] at (32,0) {$2M$};
+\node[font=\scriptsize, below] at (240,0) {$N$};
+\draw[<->] (0,-6) -- node[below, font=\scriptsize] {blocks of $B = 256$} (32,-6);
+\draw[<->] (32,-6) -- node[below, font=\scriptsize] {blocks of $M$ = 4096 to 16\,384} (240,-6);
+\end{tikzpicture}
+\end{center}
+
+\begin{itemize}
+\item \textbf{Head}: the first $2M$ samples of the response, in blocks of $B = 256$. For each block
+  of 256 input samples: one 512-point FFT, one product per block of the response, one inverse FFT.
+  This stage sets the latency: 256 samples.
+\item \textbf{Tail}: the rest, in blocks of $M$ = 4096 samples ($f_s \leq 50$\,kHz), 8192
+  ($\leq 100$\,kHz) or 16\,384. Block $j$ of the input only acts on the output from sample
+  $jM + 2M$ on: the plugin thus has $M$ samples of time to compute its contribution (one FFT, the
+  products with all the blocks of the tail, one inverse FFT) and spreads it evenly over the $M/B$
+  blocks of 256 before. There is neither a peak of computation nor an extra thread in the audio
+  processing.
+\end{itemize}
+Both stages share the spectra of the input already computed (frequency-domain delay lines). The
+result is that of the exact convolution, up to the rounding of single-precision computation: the
+tests compare it with a direct convolution in double precision, with a deviation of at most
+$4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample to $5M$ and at 48, 96 and 192\,kHz.
+
+\paragraph{Cost.} Measured on one core (blocks of 256, stereo):
+\begin{center}
+\small
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+Length & 48\,kHz & 96\,kHz & 192\,kHz \\
+\midrule
+3\,s  & 1.1\,\% & 3.0\,\% & 9.3\,\% \\
+10\,s & 2.4\,\% & 6.1\,\% & 15\,\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+The memory used is about 20\,MB at 48\,kHz (response of 10\,s at most, spectra of the input and of
+two responses).
+
+\subsection{Change of response}\label{sec:change}
+
+Noise, Seed, Length, Swell and Decay define the response: changing one of them means making it
+again (drawing the noise, FFT, cutting into blocks; about 0.1\,s of computation for 10\,s at
+48\,kHz). This work is done in a thread of the plugin, never in the audio processing, which goes
+on with the old response. When the new one is ready, it is taken at the start of a tail block.
+Since the spectra of the input do not depend on the response, the new response has the whole past
+of the signal at once: the pad does not start again from silence. The output goes from the old
+response to the new one by a linear crossfade of $M$ samples (85\,ms at 48\,kHz), then the old one
+is freed, in the thread of the plugin.
+
+Turning one of these knobs during playback therefore gives a series of crossfades, without a click,
+with a slight delay. When the plugin is activated (start of playback or of a render), the response
+is built at once: a render always starts with the right response.
+
+\subsection{Width, filters, mix and output}
+
+\paragraph{Filters.} Low cut and High cut are second-order Butterworth filters (Robert
+Bristow-Johnson's formulas), in double precision; their frequency is limited to 0.45\,$f_s$.
+When off, their coefficients are those of the identity: the output is then exactly the input.
+
+\paragraph{Width.} On the pad: $m = (p_L + p_R)/2$, $s = (p_L - p_R)/2 \cdot$ Width,
+$p_L' = m + s$, $p_R' = m - s$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\textwidth]{fig_mix_en.pdf}
+\caption{Law of the mix: gains of the dry sound and of the pad against Mix.}
+\label{fig:mix}
+\end{figure}
+
+\paragraph{Mix and output.} $y = (\text{pad} \cdot \sin(\tfrac{\pi}{2} m) + \text{delayed dry}
+\cdot \cos(\tfrac{\pi}{2} m)) \cdot g$, $g$ = gain of Output; the gains are exactly 0 and 1 at
+both ends of Mix.
+
+\subsection{Smoothing of the settings and bypass}\label{sec:smoothing}
+
+Mix, Width, Output and the coefficients of both filters go linearly to their new value in 20\,ms,
+then take it exactly: no zipper noise when they are turned or automated. The settings of the
+response change by crossfade (section~\ref{sec:change}).
+
+\paragraph{Bypass.} The output becomes the dry sound delayed by 256 samples, exactly, through a
+10\,ms crossfade; the latency stays the same. The convolution keeps running during the bypass, so
+that the pad is already there when it is released.
+
+\subsection{Denormal numbers}
+
+In silence, the states of the filters decay towards zero and would go through denormal numbers,
+very slow on x86. The plugin switches the FTZ/DAZ modes of the processor on for the time of its
+computation and gives the host its own state back on return.
+
+% ==============================================================================================
+\section{Tips}
+
+\begin{description}
+\item[A pad from an instrument.] Soft pad or Endless wash on an auxiliary send, Mix at 100\,\%:
+  detached notes become a continuous background. The longer the Length and the closer Decay is to
+  0, the steadier the pad.
+\item[Thickening.] Short smear (0.4\,s) on a voice, a guitar or a snare: the sound gets a dense
+  tail, without the space of a reverb.
+\item[Swells.] Reverse swell: each attack rises for 2\,s and then stops short. With a send placed
+  a few beats before, the swell leads into the sound.
+\item[Low end.] Pink noise gives a lot of low end: Low cut 60 to 150\,Hz, especially on a send
+  shared by several tracks.
+\item[Hiss.] White noise makes a hiss audible on soft sounds: High cut between 6 and 12\,kHz, or
+  switch to pink noise.
+\item[Texture.] If one frequency stands out too much on a sustained sound, change Seed.
+\item[Mono.] The pad is very wide; check in mono and reduce Width if the mix gets hollow.
+\item[Comparing two settings.] Set A, copy it to B (\ctl{A>B}), change B, then switch A | B.
+\end{description}
+
+% ==============================================================================================
+\section{Files, projects and compatibility}\label{sec:files}
+
+\begin{description}
+\item[With the project.] All the settings and the inactive A/B set (state \texttt{ab}). The
+  settings are read back by their names: adding a setting in a future version does not break a
+  project. The response is not saved: it is made again, identical, from the settings.
+\item[On the computer.] The theme in \texttt{padifier.conf} (\texttt{theme=dusk} or
+  \texttt{pearl}) and your presets in \texttt{presets/}, one file \texttt{<name>.preset} each, in
+  the folder:
+  \begin{itemize}
+  \item Windows: \verb|%APPDATA%\Padifier\|;
+  \item Linux: \verb|$XDG_CONFIG_HOME/padifier/|, otherwise \verb|~/.config/padifier/|.
+  \end{itemize}
+\item[Format of a preset.] Text, one line \texttt{key=value} per setting (\texttt{noise},
+  \texttt{length}, \texttt{swell}, \texttt{decay}, \texttt{seed}, \texttt{lowcut},
+  \texttt{highcut}, \texttt{width}, \texttt{mix}, \texttt{output}), numbers with a decimal point
+  whatever the language of the system. A missing key takes its default value, a value out of range
+  is brought back within the range, an unknown line is ignored. Copying the file is enough to share
+  a preset.
+\end{description}
+
+% ==============================================================================================
+\section{Known limits}\label{sec:limits}
+\begin{itemize}
+\item Latency of 256 samples: compensated by the host, but audible when playing live through the
+  plugin with a very small buffer.
+\item A change of Noise, Seed, Length, Swell or Decay arrives with a slight delay (the time to make
+  the response again); in an offline render faster than real time, an automation of these settings
+  may therefore land a little later than on playback.
+\item Each channel is convolved with its own response, without left-right crossing.
+\item The pad has no freeze: it always follows the input.
+\item Typing on the keyboard (values, preset names) depends on the host: some keep the keyboard
+  for themselves.
+\item The host only sees the factory presets.
+\end{itemize}
+
+% ==============================================================================================
+\section{Credits}
+FFT: pffft, Julien Pommier, after FFTPACK (Paul Swarztrauber, NCAR). Pseudo-random generator:
+SplitMix64 (Steele, Lea and Flood, 2014). Filters: Robert Bristow-Johnson's formulas (\emph{Audio
+EQ Cookbook}). Plugin framework and interface: DPF (DISTRHO Plugin Framework, ISC), with NanoVG
+(zlib), pugl (ISC), the CLAP headers (MIT) and the DejaVu Sans font. The licence notices of these
+components are in \texttt{THIRD\_PARTY\_LICENSES.txt}, installed with the plugin and included in
+every archive.
+
+\end{document}
