@@ -51,7 +51,8 @@ TEXT = {
     "colour": ("Colour %+d dB/oct", "Colour %+d dB/oct"),
     "t_damping": ("Damping 6 dB/oct, Bloom −60 %", "Damping 6 dB/oct, Bloom −60 %"),
     "t_chord": ("Chord ré min7, Resonance 60 %, Vibrato 0,5 demi-ton", "Chord D min7, Resonance 60 %, Vibrato 0.5 st"),
-    "t_rhythm": ("Rhythm 1/8 à 120 BPM, Duty 40 %", "Rhythm 1/8 at 120 BPM, Duty 40 %"),
+    "t_rhythm": ("Rhythm 1/8 à 120 BPM, Attack 10 %, Duty 40 %, Release 30 %",
+                 "Rhythm 1/8 at 120 BPM, Attack 10 %, Duty 40 %, Release 30 %"),
     "t_density": ("Density 40 impulsions/s", "Density 40 impulses/s"),
     "level_db": ("niveau (dB)", "level (dB)"),
     "left": ("sortie gauche", "left output"),
@@ -211,7 +212,7 @@ def fig_traitements():
     cases = (("t_damping", dict(colour=0, length=4, swell=30, decay=-24, damping=6, bloom=-60)),
              ("t_chord", dict(colour=0, length=4, swell=10, decay=-12, tune=2, note=50, chord=6, resonance=60,
                               lforate=0.5, lfopitch=0.5)),
-             ("t_rhythm", dict(colour=0, length=3, swell=5, decay=-24, rhythm=4, duty=40)),
+             ("t_rhythm", dict(colour=0, length=3, swell=5, decay=-24, rhythm=4, attack=10, duty=40, release=30)),
              ("t_density", dict(colour=0, length=3, swell=5, decay=-24, density=40)))
     fig, axes = plt.subplots(2, 2, figsize=(6.6, 5.0), sharey=True)
     for ax, (key, settings) in zip(axes.flat, cases):

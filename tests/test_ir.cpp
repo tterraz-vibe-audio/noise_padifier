@@ -312,6 +312,8 @@ static void testRhythm()
     s.swell = 0.0;
     s.rhythm = 4;   // 1/8
     s.duty = 0.4;
+    s.attack = 0.1;
+    s.release = 0.2;
     bool ok = true;
     for (const double tempo : { 120.0, 90.0 })
     {
@@ -322,14 +324,41 @@ static void testRhythm()
         for (int i = 0; i < r.length - static_cast<int>(0.03 * s.fs); ++i)
         {
             const double tau = std::fmod(i / s.fs, period) / period;
-            if (tau > 0.41 && tau < 0.99)
+            if (tau > 0.61 && tau < 0.99)   // after duty + release
                 closedNonZero += r.h[0][0][i] != 0.0f;
-            if (tau > 0.02 && tau < 0.38)
+            if (tau > 0.12 && tau < 0.38)   // held open
                 openZero += r.h[0][0][i] == 0.0f;
         }
         ok = ok && closedNonZero == 0 && openZero < 5 && std::fabs(energy(r.h[0][0]) - 1.0) < 1e-5;
     }
-    check(ok, "1/8 at 120 and 90 BPM, duty 40 %: closed parts exactly zero, open parts not, energy 1");
+    check(ok, "1/8 at 120 and 90 BPM, duty 40 %, attack 10 %, release 20 %: zero after the release, open while held, energy 1");
+
+    // the law of one step: rise sin^2 over the attack, held, fall cos^2 over the release
+    s.tempo = 120.0;
+    const double T = 0.25;
+    const double g1 = gate(s, 0.05 * T), g2 = gate(s, 0.1 * T), g3 = gate(s, 0.3 * T), g4 = gate(s, 0.5 * T),
+                 g5 = gate(s, 0.6 * T), g6 = gate(s, 3.0 * T + 0.05 * T);
+    char what[200];
+    std::snprintf(what, sizeof(what), "gate: %.3f at half the attack (0.5), %.3f at its end (1), %.3f held (1), %.3f at half the "
+                  "release (0.5), %.3f after (0); next steps alike (%.3f)", g1, g2, g3, g4, g5, g6);
+    check(std::fabs(g1 - 0.5) < 1e-9 && std::fabs(g2 - 1.0) < 1e-9 && g3 == 1.0 && std::fabs(g4 - 0.5) < 1e-9 && g5 < 1e-9
+          && std::fabs(g6 - 0.5) < 1e-9, what);
+
+    // a release longer than the closed part runs into the next step: no step down
+    s.duty = 0.8;
+    s.release = 0.5;
+    double jump = 0.0, prev = gate(s, 0.0);
+    for (int i = 1; i < 48000; ++i)
+    {
+        const double g = gate(s, i / 48000.0);
+        jump = std::fmax(jump, std::fabs(g - prev));
+        prev = g;
+    }
+    std::snprintf(what, sizeof(what), "duty 80 %%, release 50 %% (into the next step): largest change per sample %.4f (< 0.01)", jump);
+    check(jump < 0.01, what);
+    s.duty = 1.0;
+    s.attack = 0.0;
+    check(gate(s, 0.1) == 1.0 && gate(s, 0.25) == 1.0, "duty 100 %, no attack: always open");
 }
 
 static void testStereo()

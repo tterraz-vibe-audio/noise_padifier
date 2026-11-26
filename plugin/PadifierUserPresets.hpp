@@ -45,7 +45,7 @@ static const size_t kMaxNameLength = 24;
 static const char* const kUserPresetKeys[kPresetParamCount] = {
     "colour", "length", "swell", "decay", "seed", "lowcut", "highcut", "width", "mix", "output", nullptr,
     "density", "tune", "note", "chord", "resonance", "damping", "bloom", "lforate", "lfopitch", "lfotone",
-    "rhythm", "duty", "panrate", "pandepth", "cross", "predelay",
+    "rhythm", "duty", "panrate", "pandepth", "cross", "predelay", "attack", "release",
 };
 
 static inline bool validName(const std::string& name)

@@ -8,7 +8,7 @@
  *
  * Settings: symbols of the parameters (colour, length, swell, decay, seed, density, tune, note,
  * chord, resonance, damping, bloom, lforate, lfopitch, lfotone, rhythm, duty, panrate, pandepth,
- * cross) and tempo; the others keep their defaults.
+ * cross, attack, release) and tempo; the others keep their defaults.
  * Output: raw 32-bit floats, interleaved L->L, R->R, R->L, L->R (the last two 0 without Cross).
  *
  * Copyright (C) 2026 Padifier authors
@@ -29,6 +29,7 @@ static const struct { const char* key; int param; } kKeys[] = {
     { "bloom", kParamBloom }, { "lforate", kParamLfoRate }, { "lfopitch", kParamLfoPitch },
     { "lfotone", kParamLfoTone }, { "rhythm", kParamRhythm }, { "duty", kParamDuty },
     { "panrate", kParamPanRate }, { "pandepth", kParamPanDepth }, { "cross", kParamCross },
+    { "attack", kParamAttack }, { "release", kParamRelease },
 };
 
 int main(int argc, char** argv)

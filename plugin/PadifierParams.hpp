@@ -46,6 +46,9 @@ enum PadifierParam {
     kParamPanDepth,       // depth of the stereo motion, %
     kParamCross,          // true stereo: left -> right and right -> left, %
     kParamPredelay,       // delay of the wet signal, ms
+    // 1.1.1
+    kParamAttack,         // rise at the start of each step of the gate, % of the step
+    kParamRelease,        // fall after the open part of each step, % of the step
     // outputs
     kParamMeterIn,        // input peak, dBFS
     kParamMeterWet,       // wet peak, dBFS
@@ -86,6 +89,8 @@ static const PadifierRange kPadifierRanges[kParamCount] = {
     {   0.0f,   100.0f,     0.0f },   // pan depth, %
     {   0.0f,   100.0f,     0.0f },   // cross, %
     {   0.0f,   500.0f,     0.0f },   // pre-delay, ms
+    {   0.0f,   100.0f,    10.0f },   // attack, % of the step
+    {   0.0f,   100.0f,    25.0f },   // release, % of the step
     { -60.0f,     6.0f,   -60.0f },   // meter in
     { -60.0f,     6.0f,   -60.0f },   // meter wet
     { -60.0f,     6.0f,   -60.0f },   // meter out
@@ -102,7 +107,7 @@ static const float kDefaultTempo = 120.0f;   // when the host gives none
 static inline bool isIRParam(const int i)
 {
     return i == kParamColour || i == kParamLength || i == kParamSwell || i == kParamDecay || i == kParamSeed
-        || (i >= kParamDensity && i <= kParamCross);
+        || (i >= kParamDensity && i <= kParamCross) || i == kParamAttack || i == kParamRelease;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -192,7 +197,7 @@ static const PadifierPreset kPadifierPresets[] = {
         { kParamLowCut, 80 }, { kParamWidth, 130 }, { kParamMix, 60 }, { kParamLfoRate, 0.2f },
         { kParamLfoPitch, 0.15f } }),
     makePreset("Pulse gate", { { kParamLength, 4 }, { kParamSwell, 10 }, { kParamDecay, -30 },
-        { kParamRhythm, 4 }, { kParamDuty, 40 }, { kParamLowCut, 80 }, { kParamMix, 50 },
+        { kParamRhythm, 4 }, { kParamDuty, 40 }, { kParamAttack, 10 }, { kParamRelease, 30 }, { kParamLowCut, 80 }, { kParamMix, 50 },
         { kParamPanDepth, 60 }, { kParamPanRate, 1 } }),
     makePreset("Grain cloud", { { kParamColour, -1.5f }, { kParamLength, 3 }, { kParamSwell, 30 },
         { kParamDecay, -24 }, { kParamDensity, 40 }, { kParamWidth, 150 }, { kParamMix, 45 },

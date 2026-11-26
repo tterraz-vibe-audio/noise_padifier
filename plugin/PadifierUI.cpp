@@ -144,89 +144,113 @@ static const Rect kBottom    = { 20, 480, 1160, 268 };
 static const Rect kMap       = { 150, 494, 620, 222 };  // time-frequency map of the response
 static const Rect kTonePlot  = { 830, 494, 320, 104 };  // spectrum of the pad
 
-enum { kKnobColour = 0, kKnobDensity, kKnobSeed, kKnobNote, kKnobChord, kKnobResonance, kKnobLfoPitch, kKnobLength,
-       kKnobSwell, kKnobDecay, kKnobDamping, kKnobBloom, kKnobLfoRate, kKnobLfoTone, kKnobRhythm, kKnobDuty,
+enum { kKnobColour = 0, kKnobDensity, kKnobSeed, kKnobNote, kKnobResonance, kKnobLfoPitch, kKnobLength,
+       kKnobSwell, kKnobDecay, kKnobDamping, kKnobBloom, kKnobLfoRate, kKnobLfoTone, kKnobAttack, kKnobDuty, kKnobRelease,
        kKnobPanRate, kKnobPanDepth, kKnobCross, kKnobMix, kKnobOutput, kKnobLowCut, kKnobHighCut, kKnobPredelay,
        kKnobWidth, kNumKnobs };
 
+// a knob (round), or a vertical fader (fader: cx, cy centre of the track, r half its length)
 struct KnobDef {
     int param;
     float cx, cy, r;
     const char* label;
     const char* help;
+    bool fader;
 };
 
 static const KnobDef kKnobs[kNumKnobs] = {
     { kParamColour,    110.0f, 165.0f, 33.0f, "COLOUR",
       "Spectral slope of the noise, dB per octave: -6 brown (dark), -3 pink (warm, the usual choice "
-      "for pads), 0 white (bright, airy), +3 blue, +6 violet." },
+      "for pads), 0 white (bright, airy), +3 blue, +6 violet.", false },
     { kParamDensity,    65.0f, 305.0f, 24.0f, "DENSITY",
       "Impulses per second of sparse (velvet) noise: low values give a cloud of distinct grains or "
-      "echoes, high values a smooth noise. At the maximum: smooth Gaussian noise." },
+      "echoes, high values a smooth noise. At the maximum: smooth Gaussian noise.", false },
     { kParamSeed,      155.0f, 305.0f, 24.0f, "SEED",
       "Draw of the noise: each value gives another noise of the same kind, another grain of the "
-      "pad. The same seed always gives the same response." },
+      "pad. The same seed always gives the same response.", false },
     { kParamNote,      265.0f, 190.0f, 24.0f, "NOTE",
-      "Note of the comb (COMB) or root of the chord (CHORD): the pad is tuned to it." },
-    { kParamChord,     355.0f, 190.0f, 24.0f, "CHORD",
-      "Kind of chord (CHORD): one comb on each of its notes." },
+      "Note of the comb (COMB) or root of the chord (CHORD): the pad is tuned to it.", false },
     { kParamResonance, 265.0f, 305.0f, 24.0f, "RESONANCE",
-      "Ring time of the combs, 20 ms to 5 s: low, a light tint; high, a clearly pitched pad." },
+      "Ring time of the combs, 20 ms to 5 s: low, a light tint; high, a clearly pitched pad.", false },
     { kParamLfoPitch,  355.0f, 305.0f, 24.0f, "VIBRATO",
       "Depth of the LFO on the note of the combs, in semitones (rate: LFO RATE). It runs along the "
-      "response, from the attack of each sound." },
+      "response, from the attack of each sound.", false },
     { kParamLength,    480.0f, 165.0f, 33.0f, "LENGTH",
       "Length of the impulse response: how long every sound is smeared. Long: a slow pad; short: "
-      "a smear that thickens the sound. A change rebuilds the response, crossfaded in." },
+      "a smear that thickens the sound. A change rebuilds the response, crossfaded in.", false },
     { kParamSwell,     580.0f, 165.0f, 33.0f, "SWELL",
       "Rise of the envelope, in % of the length: the pad fades in and peaks at that time. 0: at "
-      "once; 100 %: rises over the whole length (reverse swell)." },
+      "once; 100 %: rises over the whole length (reverse swell).", false },
     { kParamDecay,     680.0f, 165.0f, 33.0f, "DECAY",
       "Level of the envelope at the end, after the peak (a straight line in dB). 0 dB: flat, a "
-      "held pad; -60 dB: dies away like a reverb." },
+      "held pad; -60 dB: dies away like a reverb.", false },
     { kParamDamping,   530.0f, 305.0f, 24.0f, "DAMPING",
-      "The highs die sooner: extra loss at the end, in dB per octave above 250 Hz, as in a reverb." },
+      "The highs die sooner: extra loss at the end, in dB per octave above 250 Hz, as in a reverb.", false },
     { kParamBloom,     630.0f, 305.0f, 24.0f, "BLOOM",
       "The peak moves with frequency: positive, the highs peak later (the pad opens up); "
-      "negative, the lows peak later (it warms up)." },
+      "negative, the lows peak later (it warms up).", false },
     { kParamLfoRate,   795.0f, 150.0f, 22.0f, "LFO RATE",
       "Rate of the LFO along the response (vibrato of the combs, tone). It starts again at the "
-      "attack of each sound." },
+      "attack of each sound.", false },
     { kParamLfoTone,   865.0f, 150.0f, 22.0f, "LFO TONE",
-      "Depth of the LFO on the colour: the pad gets brighter and darker, in dB per octave." },
-    { kParamRhythm,    795.0f, 265.0f, 22.0f, "RHYTHM",
-      "Gate along the response, on the tempo of the host: the pad pulses at this division from "
-      "the attack of each sound. Short duty: separate bursts, like echoes." },
-    { kParamDuty,      865.0f, 265.0f, 22.0f, "DUTY",
-      "Open part of each period of the gate." },
+      "Depth of the LFO on the colour: the pad gets brighter and darker, in dB per octave.", false },
+    { kParamAttack,    857.0f, 266.0f, 28.0f, "ATTACK",
+      "Rise at the start of each step of the gate, in % of the step (at least 1 ms, at most the duty). "
+      "Shown: the time at the tempo.", true },
+    { kParamDuty,      899.0f, 266.0f, 28.0f, "DUTY",
+      "Part of each step during which the gate is open (the attack included); the release follows.", true },
+    { kParamRelease,   941.0f, 266.0f, 28.0f, "RELEASE",
+      "Fall after the open part of each step, in % of the step (at least 1 ms); it may run into the "
+      "next step. Shown: the time at the tempo.", true },
     { kParamPanRate,   795.0f, 380.0f, 22.0f, "PAN RATE",
-      "Rate of the stereo motion along the response." },
+      "Rate of the stereo motion along the response.", false },
     { kParamPanDepth,  865.0f, 380.0f, 22.0f, "PAN DEPTH",
-      "Depth of the stereo motion: the pad swings between left and right." },
+      "Depth of the stereo motion: the pad swings between left and right.", false },
     { kParamCross,     935.0f, 380.0f, 22.0f, "CROSS",
       "True stereo: each input also reaches the other side through its own noise. 0: none (half "
-      "the computation); 100 %: as much as the direct path." },
+      "the computation); 100 %: as much as the direct path.", false },
     { kParamMix,      1040.0f, 150.0f, 22.0f, "MIX",
       "Dry / pad, equal power (pad sin, dry cos of 90 degrees x mix). At 100 %: pad only (for a "
-      "send)." },
+      "send).", false },
     { kParamOutput,   1130.0f, 150.0f, 22.0f, "OUTPUT",
-      "Gain of the whole output, dry and pad." },
+      "Gain of the whole output, dry and pad.", false },
     { kParamLowCut,   1040.0f, 265.0f, 22.0f, "LOW CUT",
       "High-pass on the pad only (12 dB / octave): pink and brown noise carry a lot of low end. "
-      "At the minimum: off." },
+      "At the minimum: off.", false },
     { kParamHighCut,  1130.0f, 265.0f, 22.0f, "HIGH CUT",
-      "Low-pass on the pad only (12 dB / octave): a darker, softer pad. At the maximum: off." },
+      "Low-pass on the pad only (12 dB / octave): a darker, softer pad. At the maximum: off.", false },
     { kParamPredelay, 1040.0f, 380.0f, 22.0f, "PRE-DELAY",
-      "Delay of the pad: it starts later than the dry sound. A change crossfades in 30 ms." },
+      "Delay of the pad: it starts later than the dry sound. A change crossfades in 30 ms.", false },
     { kParamWidth,    1130.0f, 380.0f, 22.0f, "WIDTH",
-      "Stereo width of the pad: 0 % mono, 100 % as made, 200 % side doubled." },
+      "Stereo width of the pad: 0 % mono, 100 % as made, 200 % side doubled.", false },
 };
 
 static const Rect kTune     = { 222, 104, 176, 28 };   // OFF | COMB | CHORD
+
+// settings with a few named values: a box that opens a list (instead of a knob)
+struct ListDef {
+    int param;
+    Rect box;
+    const char* label;
+    const char* help;
+};
+
+enum { kListChord = 0, kListRhythm, kNumLists };
+
+static const ListDef kLists[kNumLists] = {
+    { kParamChord,  { 317, 177, 76, 26 }, "CHORD",
+      "Kind of chord (CHORD): one comb on each of its notes. Click: the list; wheel: next / previous." },
+    { kParamRhythm, { 760, 238, 70, 26 }, "RHYTHM",
+      "Gate along the response, on the tempo of the host: the pad pulses at this division from the "
+      "attack of each sound. Short duty: separate bursts, like echoes. Click: the list; wheel: next / "
+      "previous." },
+};
+
+static const float kListRowH = 19.0f;
 static const Rect kTuneInfo = { 222, 380, 176, 70 };   // readout of the tuning
 static const Rect kEnvInfo  = { 440, 380, 280, 76 };   // readout of the envelope
 static const Rect kLfoInfo  = { 905, 125, 70, 50 };    // period of the LFO
-static const Rect kRhyInfo  = { 905, 240, 70, 50 };    // length of the division
+static const Rect kRhyInfo  = { 760, 284, 70, 44 };    // length of the division
 static const Rect kPreset  = { 640, 16, 220, 26 };     // drop-down box; the list opens below it
 static const Rect kAB      = { 870, 17, 50, 24 };      // A | B
 static const Rect kCopy    = { 924, 17, 34, 24 };      // copy the current set to the other
@@ -297,6 +321,7 @@ static const Zone kZones[kNumZones] = {
 };
 
 static const int kHoverZoneBase = 100;
+static const int kHoverListBase = 200;   // hover on the box of a list
 
 // ------------------------------------------------------------------------------------------------
 
@@ -376,6 +401,15 @@ protected:
             applyPreset(PADIFIER_UI_DEMO_PRESET);
         }
 #endif
+#ifdef PADIFIER_UI_DEMO_LIST
+        // screenshots: list PADIFIER_UI_DEMO_LIST open, the mouse over its row 2
+        if (!fDemoListDone)
+        {
+            fDemoListDone = true;
+            openList(PADIFIER_UI_DEMO_LIST);
+            fListHover = 2;
+        }
+#endif
 #ifdef PADIFIER_UI_DEMO_MENU
         // screenshots: the list open, the mouse over row PADIFIER_UI_DEMO_MENU
         // (with PADIFIER_UI_DEMO_ARM: its cross clicked once)
@@ -425,6 +459,8 @@ protected:
         drawPlots();
         if (fMenuOpen)
             drawPresetMenu();
+        else if (fList >= 0)
+            drawList(fList);
         else if (fNaming)
             drawNamingHint();
         else if (fHover >= 0 && fDrag < 0 && fEdit < 0)
@@ -463,6 +499,24 @@ protected:
         {
             menuClick(x, y, ev.button == kMouseButtonLeft);
             return true;
+        }
+        if (fList >= 0)
+        {
+            const int row = listRowAt(fList, x, y);
+            const int l = fList;
+            closeList();
+            if (row >= 0 && ev.button == kMouseButtonLeft)
+                setOnce(kLists[l].param, static_cast<float>(row));
+            return true;
+        }
+        if (ev.button == kMouseButtonLeft)
+        {
+            const int l = listAt(x, y);
+            if (l >= 0)
+            {
+                openList(l);
+                return true;
+            }
         }
 
         const int k = knobAt(x, y);
@@ -516,6 +570,17 @@ protected:
         const float x = static_cast<float>(ev.pos.getX()) / s;
         const float y = static_cast<float>(ev.pos.getY()) / s;
 
+        if (fList >= 0)
+        {
+            const int row = listRowAt(fList, x, y);
+            if (row != fListHover)
+            {
+                fListHover = row;
+                repaint();
+            }
+            return true;
+        }
+
         if (fMenuOpen)
         {
             int row = rowAt(x, y);
@@ -536,7 +601,8 @@ protected:
         if (fDrag >= 0)
         {
             const int p = kKnobs[fDrag].param;
-            const float pixels = (ev.mod & kModifierShift) ? 900.0f : 220.0f;
+            const float pixels = kKnobs[fDrag].fader ? 2.0f * kKnobs[fDrag].r * ((ev.mod & kModifierShift) ? 4.0f : 1.0f)
+                                                      : (ev.mod & kModifierShift) ? 900.0f : 220.0f;
             const float norm = toNorm(p, fValues[p]) + (fLastY - y) / pixels;
             fLastY = y;
             changeValue(p, fromNorm(p, norm));
@@ -544,6 +610,8 @@ protected:
         }
 
         int h = knobAt(x, y);
+        if (h < 0 && listAt(x, y) >= 0)
+            h = kHoverListBase + listAt(x, y);
         if (h < 0)
             for (int z = 0; z < kNumZones; ++z)
                 if (kZones[z].r.contains(x, y))
@@ -583,10 +651,28 @@ protected:
                 stepPreset(d > 0.0f ? -1 : 1);
             return true;
         }
+        if (fList >= 0)
+            return true;
+        const int l = listAt(x, y);
+        if (l >= 0)
+        {
+            // wheel up: previous value, down: next
+            if (d != 0.0f)
+                setOnce(kLists[l].param, static_cast<float>(std::min(std::max(listValue(l) + (d > 0.0f ? -1 : 1), 0),
+                                                                     listCount(l) - 1)));
+            return true;
+        }
         const int k = knobAt(x, y);
         if (k < 0)
             return false;
         const int p = kKnobs[k].param;
+        if (whole(p))
+        {
+            // one step per notch (a fraction of the range would round back to the same value)
+            if (d != 0.0f)
+                setOnce(p, clampValue(p, std::round(fValues[p]) + (d > 0.0f ? 1.0f : -1.0f)));
+            return true;
+        }
         const float step = (ev.mod & kModifierShift) ? 0.005f : 0.025f;
         setOnce(p, fromNorm(p, toNorm(p, fValues[p]) + d * step));
         return true;
@@ -599,6 +685,11 @@ protected:
         if (fMenuOpen && ev.press && ev.key == kKeyEscape)
         {
             closeMenu();
+            return true;
+        }
+        if (fList >= 0 && ev.press && ev.key == kKeyEscape)
+        {
+            closeList();
             return true;
         }
         if (fNaming)
@@ -1101,7 +1192,14 @@ private:
     {
         for (int i = 0; i < kNumKnobs; ++i)
         {
-            const float dx = x - kKnobs[i].cx, dy = y - kKnobs[i].cy, r = kKnobs[i].r + 8.0f;
+            const KnobDef& k = kKnobs[i];
+            if (k.fader)
+            {
+                if (std::fabs(x - k.cx) <= 14.0f && std::fabs(y - k.cy) <= k.r + 8.0f)
+                    return i;
+                continue;
+            }
+            const float dx = x - k.cx, dy = y - k.cy, r = k.r + 8.0f;
             if (dx * dx + dy * dy <= r * r)
                 return i;
         }
@@ -1243,11 +1341,75 @@ private:
             else
                 std::snprintf(buf, size, "%.0f %%", v);
             break;
+        case kParamAttack:
+        case kParamRelease:
+        {
+            const int div = PadifierLaw::choice(fValues[kParamRhythm], kDivisionCount);
+            if (detail && div > 0)
+            {
+                secondsText(0.01 * v * kDivisions[div].beats * 60.0 / fValues[kParamTempo], f, sizeof(f));
+                std::snprintf(buf, size, "%.0f %% of the step (%s)", v, f);
+            }
+            else
+                std::snprintf(buf, size, "%.0f %%", v);
+            break;
+        }
         case kParamDuty:
         case kParamWidth:  std::snprintf(buf, size, "%.0f %%", v); break;
         case kParamOutput: std::snprintf(buf, size, "%+.1f dB", v); break;
         default:           std::snprintf(buf, size, "%.2f", v); break;
         }
+    }
+
+    static int listCount(const int l) { return l == kListChord ? kChordCount : kDivisionCount; }
+
+    static const char* listName(const int l, const int i)
+    {
+        return l == kListChord ? kChords[i].name : kDivisions[i].name;
+    }
+
+    int listValue(const int l) const { return PadifierLaw::choice(fValues[kLists[l].param], listCount(l)); }
+
+    bool listActive(const int l) const
+    {
+        return l != kListChord || PadifierLaw::choice(fValues[kParamTune], 3) == 2;
+    }
+
+    int listAt(const float x, const float y) const
+    {
+        for (int l = 0; l < kNumLists; ++l)
+            if (kLists[l].box.contains(x, y))
+                return l;
+        return -1;
+    }
+
+    // the open list: under its box, one row per value
+    Rect listRect(const int l) const
+    {
+        const Rect& b = kLists[l].box;
+        return { b.x, b.y + b.h + 2.0f, std::max(b.w, 90.0f), listCount(l) * kListRowH + 6.0f };
+    }
+
+    int listRowAt(const int l, const float x, const float y) const
+    {
+        const Rect r = listRect(l);
+        if (!r.contains(x, y))
+            return -1;
+        const int i = static_cast<int>((y - r.y - 3.0f) / kListRowH);
+        return i >= 0 && i < listCount(l) ? i : -1;
+    }
+
+    void openList(const int l)
+    {
+        fList = l;
+        fListHover = -1;
+        repaint();
+    }
+
+    void closeList()
+    {
+        fList = -1;
+        repaint();
     }
 
     // knobs without effect with the other settings: drawn faint
@@ -1261,6 +1423,8 @@ private:
         case kParamLfoPitch: return tune > 0;
         case kParamChord:    return tune == 2;
         case kParamLfoRate:  return (tune > 0 && fValues[kParamLfoPitch] > 0.0f) || fValues[kParamLfoTone] > 0.0f;
+        case kParamAttack:
+        case kParamRelease:
         case kParamDuty:     return PadifierLaw::choice(fValues[kParamRhythm], kDivisionCount) > 0;
         case kParamPanRate:  return fValues[kParamPanDepth] > 0.0f;
         default:             return true;
@@ -1517,6 +1681,7 @@ private:
         segmented(kTune, names, 3, tune, 10);
         for (int k = kKnobNote; k <= kKnobLfoPitch; ++k)
             drawKnob(k);
+        drawListBox(kListChord);
         divider(r.x + 12, r.x + r.w - 12, 370);
         const float cx = r.x + r.w * 0.5f;
         char a[64], b[96];
@@ -1586,6 +1751,7 @@ private:
         sectionTitle(r, "4", "MOTION", "along the response");
         for (int k = kKnobLfoRate; k <= kKnobCross; ++k)
             drawKnob(k);
+        drawListBox(kListRhythm);
         divider(r.x + 12, r.x + r.w - 12, 222);
         divider(r.x + 12, r.x + r.w - 12, 337);
         char b[48];
@@ -1594,15 +1760,17 @@ private:
         secondsText(1.0 / fValues[kParamLfoRate], b, sizeof(b));
         label(cx, 158, 11, knobActive(kKnobLfoRate) ? fT->gold : fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b);
         const int div = PadifierLaw::choice(fValues[kParamRhythm], kDivisionCount);
-        label(cx, 255, 9, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, "STEP", 1);
+        const float sx = kRhyInfo.x + kRhyInfo.w * 0.5f;
         if (div == 0)
-            label(cx, 273, 11, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, "off");
+            label(sx, 300, 10, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, "no gate");
         else
         {
             secondsText(kDivisions[div].beats * 60.0 / fValues[kParamTempo], b, sizeof(b));
-            label(cx, 273, 11, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, b);
+            char t[64];
+            std::snprintf(t, sizeof(t), "step %s", b);
+            label(sx, 298, 10, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, t);
             std::snprintf(b, sizeof(b), "%.0f BPM", fValues[kParamTempo]);
-            label(cx, 289, 9, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b);
+            label(sx, 314, 9, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b);
         }
     }
 
@@ -1616,6 +1784,74 @@ private:
         divider(r.x + 12, r.x + r.w - 12, 337);
     }
 
+    // box of a list: label below, as a knob; faint while it has no effect
+    void drawListBox(const int l)
+    {
+        const ListDef& d = kLists[l];
+        const Rect& b = d.box;
+        const bool active = listActive(l), open = fList == l;
+        if (!active)
+            globalAlpha(0.35f);
+        beginPath();
+        roundedRect(b.x, b.y, b.w, b.h, 5);
+        fillColor(fT->well);
+        fill();
+        strokeWidth(1.0f);
+        strokeColor(open ? fT->gold : fHover == kHoverListBase + l ? fT->hoverEdge : fT->panelEdge);
+        stroke();
+        label(b.x + 9, b.y + b.h * 0.5f, 11.5f, open ? fT->gold : fT->text, ALIGN_LEFT | ALIGN_MIDDLE,
+              listName(l, listValue(l)), 0.3f);
+        const float ax = b.x + b.w - 11, ay = b.y + b.h * 0.5f, dd = open ? -1.0f : 1.0f;
+        beginPath();
+        moveTo(ax - 4, ay - 2 * dd);
+        lineTo(ax + 4, ay - 2 * dd);
+        lineTo(ax, ay + 3 * dd);
+        closePath();
+        fillColor(open ? fT->gold : fT->dim);
+        fill();
+        label(b.x + b.w * 0.5f, b.y + b.h + (l == kListRhythm ? 12 : 28), 11, fT->text, ALIGN_CENTER | ALIGN_MIDDLE,
+              d.label, 1.5f);
+        if (!active)
+            globalAlpha(1.0f);
+    }
+
+    // open list, over everything: the values, the current one marked with a dot
+    void drawList(const int l)
+    {
+        const Rect r = listRect(l);
+        beginPath();
+        rect(r.x - 10, r.y - 6, r.w + 20, r.h + 22);
+        roundedRect(r.x, r.y, r.w, r.h, 6);
+        pathWinding(CW);
+        fillPaint(boxGradient(r.x, r.y + 3, r.w, r.h, 8, 12, fT->panelShadow, transparent(fT->panelShadow)));
+        fill();
+        beginPath();
+        roundedRect(r.x, r.y, r.w, r.h, 6);
+        fillColor(fT->tipBg);
+        fill();
+        strokeWidth(1.0f);
+        strokeColor(fT->tipEdge);
+        stroke();
+        const int current = listValue(l);
+        for (int i = 0; i < listCount(l); ++i)
+        {
+            const Rect row = { r.x, r.y + 3.0f + i * kListRowH, r.w, kListRowH };
+            const float cy = row.y + row.h * 0.5f;
+            const bool hover = i == fListHover;
+            if (hover)
+                menuHighlight(row);
+            const Color c = hover ? fT->onAccent : i == current ? fT->gold : fT->text;
+            if (i == current)
+            {
+                beginPath();
+                circle(row.x + 10, cy, 2.5f);
+                fillColor(c);
+                fill();
+            }
+            label(row.x + 20, cy, 11.5f, c, ALIGN_LEFT | ALIGN_MIDDLE, listName(l, i), 0.3f);
+        }
+    }
+
     // faint while it has no effect with the other settings
     void drawKnob(const int i)
     {
@@ -1627,9 +1863,70 @@ private:
             globalAlpha(1.0f);
     }
 
+    // vertical fader: track, fill from the bottom, cap; label and value below
+    void drawFader(const int i)
+    {
+        const KnobDef& k = kKnobs[i];
+        const int p = k.param;
+        const bool active = i == fHover || i == fDrag || i == fEdit;
+        const float n = toNorm(p, fValues[p]);
+        const float top = k.cy - k.r, bottom = k.cy + k.r, yv = bottom - n * 2.0f * k.r;
+        beginPath();
+        roundedRect(k.cx - 2.5f, top, 5.0f, 2.0f * k.r, 2.5f);
+        fillColor(fT->deepWell);
+        fill();
+        if (n > 0.001f)
+        {
+            beginPath();
+            roundedRect(k.cx - 2.5f, yv, 5.0f, bottom - yv, 2.5f);
+            fillPaint(linearGradient(0, bottom, 0, top, fT->deep, active ? fT->gold : fT->hot));
+            fill();
+        }
+        beginPath();
+        roundedRect(k.cx - 9.0f, yv - 4.0f, 18.0f, 8.0f, 3.0f);
+        fillPaint(linearGradient(0, yv - 4.0f, 0, yv + 4.0f, fT->knob0, fT->knob1));
+        fill();
+        strokeWidth(1.0f);
+        strokeColor(active ? fT->gold : fT->knobEdge);
+        stroke();
+        beginPath();
+        moveTo(k.cx - 5.0f, yv + 0.5f);
+        lineTo(k.cx + 5.0f, yv + 0.5f);
+        strokeColor(active ? fT->gold : fT->pointer);
+        stroke();
+
+        label(k.cx, bottom + 14, 9, fT->text, ALIGN_CENTER | ALIGN_MIDDLE, k.label, 0.8f);
+        const float vy = bottom + 28;
+        if (i == fEdit)
+        {
+            const float bw = 46.0f, bx = k.cx - bw * 0.5f;
+            beginPath();
+            roundedRect(bx, vy - 9, bw, 18, 4);
+            fillColor(fT->deepWell);
+            fill();
+            strokeWidth(1.0f);
+            strokeColor(fT->gold);
+            stroke();
+            char e[40];
+            std::snprintf(e, sizeof(e), "%s_", fEditText);
+            label(k.cx, vy, 11, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, e);
+        }
+        else
+        {
+            char buf[48];
+            valueText(p, buf, sizeof(buf), false);
+            label(k.cx, vy, 10, active ? fT->gold : fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, buf);
+        }
+    }
+
     void drawKnobBody(const int i)
     {
         const KnobDef& k = kKnobs[i];
+        if (k.fader)
+        {
+            drawFader(i);
+            return;
+        }
         const int p = k.param;
         const bool active = i == fHover || i == fDrag || i == fEdit;
         const float n = toNorm(p, fValues[p]);
@@ -2189,14 +2486,23 @@ private:
         char title[128];
         const char* help;
         Rect anchor;
-        if (hover < kHoverZoneBase)
+        if (hover >= kHoverListBase)
+        {
+            const ListDef& d = kLists[hover - kHoverListBase];
+            char v[64];
+            valueText(d.param, v, sizeof(v), true);
+            std::snprintf(title, sizeof(title), "%s  %s", d.label, v);
+            help = d.help;
+            anchor = d.box;
+        }
+        else if (hover < kHoverZoneBase)
         {
             const KnobDef& d = kKnobs[hover];
             char v[80];
             valueText(d.param, v, sizeof(v), true);
             std::snprintf(title, sizeof(title), "%s  %s", d.label, v);
             help = d.help;
-            const float r = d.r + 10;
+            const float r = d.fader ? d.r + 30 : d.r + 10;
             anchor = { d.cx - r, d.cy - r, 2 * r, 2 * r };
         }
         else
@@ -2249,6 +2555,7 @@ private:
     const Theme* fT = &kThemes[PadifierPrefs::kThemeDusk];
     FontId fFont = 0;
     int fDrag = -1, fHover = -1, fEdit = -1;
+    int fList = -1, fListHover = -1;   // open list (kLists) and the row under the mouse
     int fLastClickTarget = -1;
     uint fLastClickTime = 0;
     float fLastY = 0.0f;
@@ -2286,6 +2593,9 @@ private:
     std::chrono::steady_clock::time_point fLastPaint;
 #ifdef PADIFIER_UI_DEMO_PRESET
     bool fDemoPresetDone = false;
+#endif
+#ifdef PADIFIER_UI_DEMO_LIST
+    bool fDemoListDone = false;
 #endif
 #ifdef PADIFIER_UI_DEMO_MENU
     bool fDemoMenuDone = false;

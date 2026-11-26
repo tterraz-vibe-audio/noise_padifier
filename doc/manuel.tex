@@ -154,7 +154,7 @@ est sur OFF) ; il reste utilisable.
 \ctl{COLOUR}, \ctl{DENSITY} et \ctl{SEED} : le bruit de départ.
 
 \subsection{Section 2 : TUNE}
-Le sélecteur \ctl{OFF | COMB | CHORD}, puis \ctl{NOTE}, \ctl{CHORD}, \ctl{RESONANCE} et
+Le sélecteur \ctl{OFF | COMB | CHORD}, puis \ctl{NOTE}, la liste \ctl{CHORD}, \ctl{RESONANCE} et
 \ctl{VIBRATO}. Au-dessous : la note et sa fréquence (ou les notes de l'accord) et le temps de
 résonance des peignes.
 
@@ -164,8 +164,9 @@ de l'enveloppe (à 125\,Hz et 8\,kHz quand Bloom est actif), la fin de la répon
 à 8\,kHz avec Damping), le nombre d'échantillons par trajet et la latence.
 
 \subsection{Section 4 : MOTION}
-Trois rangées : le LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, et sa période), le rythme (\ctl{RHYTHM},
-\ctl{DUTY}, et la durée d'un pas au tempo de l'hôte), la stéréo (\ctl{PAN RATE}, \ctl{PAN DEPTH},
+Trois rangées : le LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, et sa période), le rythme (la liste \ctl{RHYTHM}
+et la durée d'un pas au tempo de l'hôte, puis trois faders verticaux \ctl{ATTACK}, \ctl{DUTY} et
+\ctl{RELEASE}), la stéréo (\ctl{PAN RATE}, \ctl{PAN DEPTH},
 \ctl{CROSS}).
 
 \subsection{Section 5 : OUTPUT}
@@ -191,6 +192,12 @@ Trois rangées : le LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, et sa période), le ryt
 \item glisser verticalement ; \textsf{Maj} pour un réglage fin ;
 \item molette (\textsf{Maj} : fin) ;
 \item double-clic ou \textsf{Ctrl}+clic : valeur par défaut ;
+\item faders (ATTACK, DUTY, RELEASE) : glisser verticalement, le curseur suit la souris
+  (\textsf{Maj} : fin) ; molette, double-clic et clic droit comme pour les boutons ;
+\item réglages à valeurs entières (NOTE, SEED) : un cran de molette par valeur ;
+\item listes \ctl{CHORD} et \ctl{RHYTHM} : un clic ouvre la liste des valeurs (la valeur courante est
+  marquée d'un point), un clic en choisit une, \textsf{Échap} ou un clic ailleurs la referme ; la
+  molette sur la case fermée passe à la valeur suivante ou précédente ;
 \item clic droit : saisie de la valeur au clavier (\textsf{Entrée} valide, \textsf{Échap}
   annule ; la virgule est acceptée comme séparateur décimal).
 \end{itemize}
@@ -224,7 +231,9 @@ Bloom & $-100$--+100\,\% & 0 & déplacement du pic avec la fréquence \\
 LFO rate & 0,05--10\,Hz & 0,5\,Hz & vitesse du LFO (vibrato, couleur) \\
 LFO tone & 0--6\dB/oct & 0 & profondeur du LFO sur la couleur \\
 Rhythm & off, 1/1--1/32 & off & porte calée sur le tempo (pointées, triolets) \\
+Attack & 0--100\,\% & 10\,\% & montée au début de chaque pas \\
 Duty & 5--100\,\% & 50\,\% & part ouverte de chaque pas \\
+Release & 0--100\,\% & 25\,\% & descente après la part ouverte \\
 Pan rate & 0,05--10\,Hz & 0,3\,Hz & vitesse du mouvement stéréo \\
 Pan depth & 0--100\,\% & 0 & profondeur du mouvement stéréo \\
 Cross & 0--100\,\% & 0 & vraie stéréo : croisements gauche-droite \\
@@ -312,18 +321,64 @@ des notes successives se superposent avec un décalage et s'adoucissent. Une ré
 vibrato des peignes et à la couleur ; LFO TONE fait osciller la pente du spectre de $\pm$ sa
 valeur : la nappe s'éclaircit et s'assombrit.
 
-\paragraph{Rhythm, Duty.} Une porte coupe la réponse en pas de la division choisie (1/1 à 1/32,
-pointées, triolets) au tempo de l'hôte (120\,BPM s'il n'en donne pas) ; chaque pas est ouvert
-pendant Duty, avec des fronts de 3\,ms au plus. Avec un Duty court, chaque son revient en salves
-séparées, comme des échos rythmés ; plus long, la nappe pulse. Un changement de tempo refait la
-réponse.
+\paragraph{Rhythm, Attack, Duty, Release.} Une porte coupe la réponse en pas de la division
+choisie (1/1 à 1/32, pointées, triolets) au tempo de l'hôte (120\,BPM s'il n'en donne pas). Chaque
+pas monte pendant Attack (courbe $\sin^2$), reste ouvert jusqu'à la fin de Duty, puis descend
+pendant Release (courbe $\cos^2$). Attack et Release sont en pourcentage du pas, si bien que la
+forme suit le tempo ; leur durée s'affiche dans la bulle d'aide. Attack fait partie de Duty (il est
+borné par Duty) ; Release vient après et peut déborder sur le pas suivant, la porte prenant alors
+le plus grand des deux niveaux (pas de marche). Chaque front dure au moins 1\,ms.
+Avec Attack et Release courts et un Duty court, chaque son revient en salves séparées, comme des
+échos rythmés ; avec des fronts longs, la nappe respire ou ondule (Duty 100\,\% et Attack non nul :
+une modulation d'amplitude au rythme du pas). Un changement de tempo refait la réponse.
 
 \paragraph{Pan rate, Pan depth.} La nappe se balance entre gauche et droite : à 100\,\%, chaque
 côté s'éteint à son tour (figure~\ref{fig:stereo}).
 
-\paragraph{Cross.} Vraie stéréo : en plus de son trajet direct, chaque entrée atteint l'autre côté
-par un quatrième bruit, indépendant. À 0, pas de croisement (et deux fois moins de calcul) ; à
-100\,\%, autant de croisé que de direct. Une source placée à gauche se diffuse alors des deux côtés.
+\paragraph{Cross.} Vraie stéréo : règle combien chaque entrée nourrit aussi le pad du côté
+opposé.
+
+\emph{Sans Cross (0)}, chaque côté est traité seul : sortie gauche = entrée gauche convoluée par
+un bruit, sortie droite = entrée droite convoluée par un autre bruit, indépendant. Le pad garde la
+position de la source : un son placé tout à gauche donne un pad tout à gauche, rien à droite.
+
+\emph{Avec Cross}, chaque entrée atteint aussi l'autre côté par un troisième et un quatrième
+bruit, eux aussi indépendants :
+\[
+\text{sortie}_L = \cos\!\left(c\,\tfrac{\pi}{4}\right) (x_L * h_{LL})
+               + \sin\!\left(c\,\tfrac{\pi}{4}\right) (x_R * h_{RL}),
+\qquad c = \text{Cross} / 100,
+\]
+et de même à droite. À 50\,\%, le trajet direct est à $-0{,}7$\dB{} et le trajet croisé à
+$-8{,}3$\dB ; à 100\,\%, les deux sont à $-3$\dB : un son placé tout à gauche donne un pad de même
+niveau des deux côtés, et le pad remplit toute la largeur quelle que soit la position de la
+source. C'est le comportement d'une salle réelle (réverbération \og vraie stéréo\fg), où un son à
+gauche résonne partout.
+
+Ce que Cross ne change pas :
+\begin{itemize}
+\item \textbf{le niveau} : pour une entrée aux canaux indépendants, l'énergie de chaque sortie
+  reste la même ($\cos^2 + \sin^2 = 1$) ;
+\item \textbf{la largeur} : les quatre bruits sont indépendants, les deux sorties restent
+  décorrélées ; le pad reste large, il ne devient pas mono ;
+\item \textbf{une source mono} (même signal à gauche et à droite) : la sortie était déjà large et
+  équilibrée sans Cross ; Cross ne fait alors que changer le tirage du bruit, pas l'image. Il ne
+  sert qu'aux sources stéréo dont les deux côtés diffèrent : instruments placés à gauche ou à
+  droite, prises de batterie en stéréo, mélanges stéréo envoyés sur un départ auxiliaire.
+\end{itemize}
+
+\emph{Différence avec Width} : Width agit après coup sur le pad déjà fait ; à 0\,\%, il le rend
+mono (un pad placé à gauche se retrouve au centre, mais étroit). Cross répartit le pad des deux
+côtés tout en le gardant large. Les deux se combinent.
+
+\emph{Coût} : quatre convolutions au lieu de deux, soit à peu près le double du calcul (4,5\,\%
+d'un cœur au lieu de 2,2\,\% à 48\,kHz pour une réponse de 10\,s) et de la mémoire, et une
+reconstruction un peu plus longue ; seulement quand Cross est au-dessus de 0. Le mouvement stéréo
+(Pan) s'applique ensuite, sortie par sortie.
+
+\emph{Quand l'utiliser} : sur un départ auxiliaire qui reçoit des sources placées à gauche ou à
+droite, quand un pad cantonné à un côté sonne artificiel. Le laisser à 0 pour garder la position
+de la source dans le pad, pour une source mono, ou pour économiser du calcul.
 
 \subsection{Output}
 
@@ -362,7 +417,7 @@ Short smear & bruit blanc, 0,4\,s, Swell 20\,\%, Decay $-40$, Low cut 100\,Hz, M
 Reverse swell & 2\,s, Swell 100\,\%, Decay 0, Width 120\,\% \\
 Tuned drone & COMB sur A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay $-12$, Mix 60\,\% \\
 Chord pad & CHORD min7 sur D3, Resonance 60\,\%, Vibrato 0,15, LFO 0,2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\% \\
-Pulse gate & Rhythm 1/8, Duty 40\,\%, Pan depth 60\,\% à 1\,Hz, 4\,s, Swell 10\,\% \\
+Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% à 1\,Hz, 4\,s, Swell 10\,\% \\
 Grain cloud & Colour $-1{,}5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\% \\
 Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 à 0,4\,Hz, Mix 55\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
@@ -464,9 +519,11 @@ $N = \mathrm{round}(\text{Length} \cdot f_s)$ échantillons, à partir d'un brui
   $\text{Decay} - \text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$, et le facteur de
   couleur du LFO $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6{,}02}$.
   Puis, dans les deux cas, le fondu $\cos^2$ des dernières $\min(20\,\text{ms}, L/10)$.
-\item \textbf{Rythme.} Porte de période (durée de la division) $\times\, 60$ / tempo, ouverte
-  pendant Duty de chaque période à partir de $t = 0$, fronts en $\sin^2$ de $\min(3\,\text{ms},
-  \text{ouvert}/4, \text{fermé}/4)$.
+\item \textbf{Rythme.} Porte de période $T$ = (durée de la division) $\times\, 60$ / tempo ;
+  chaque pas $k$, à partir de $kT$ : montée $\sin^2$ pendant $\min(\max(\text{Attack}\cdot T,
+  1\,\text{ms}), \text{Duty}\cdot T)$, palier jusqu'à $\text{Duty}\cdot T$, descente $\cos^2$ pendant
+  $\max(\text{Release}\cdot T, 1\,\text{ms})$ ; la porte est le plus grand des niveaux du pas en cours
+  et des descentes des pas précédents. Avec Duty 100\,\% et Attack nul, elle reste ouverte.
 \item \textbf{Normalisation.} Énergie 1 : $\sum_n h(n)^2 = 1$.
 \end{enumerate}
 Ensuite, la sortie $o$ est faite du trajet direct $\times \cos(c\,\pi/4)$ et du trajet croisé
@@ -655,8 +712,8 @@ calcul et rend à l'hôte son propre état en sortie.
   gagne une queue dense, sans l'espace d'une réverbération.
 \item[Montées.] Reverse swell : chaque attaque monte pendant 2\,s puis s'arrête net. Avec un
   départ placé quelques temps avant, la montée précède le son.
-\item[Rythme.] Pulse gate : la nappe pulse en croches au tempo ; DUTY court pour des échos
-  rythmés, long pour une respiration.
+\item[Rythme.] Pulse gate : la nappe pulse en croches au tempo ; DUTY, ATTACK et RELEASE courts
+  pour des échos rythmés et nets, fronts longs pour une respiration.
 \item[Réalisme.] DAMPING 3 à 6\dB/oct rend la queue plus naturelle ; BLOOM négatif donne une
   nappe qui se réchauffe en s'installant.
 \item[Grave.] Les bruits rose et brun donnent beaucoup de grave : Low cut 60 à 150\,Hz, surtout en
@@ -686,7 +743,7 @@ calcul et rend à l'hôte son propre état en sortie.
   des paramètres : \texttt{colour}, \texttt{length}, \texttt{swell}, \texttt{decay},
   \texttt{seed}, \texttt{density}, \texttt{tune}, \texttt{note}, \texttt{chord},
   \texttt{resonance}, \texttt{damping}, \texttt{bloom}, \texttt{lforate}, \texttt{lfopitch},
-  \texttt{lfotone}, \texttt{rhythm}, \texttt{duty}, \texttt{panrate}, \texttt{pandepth},
+  \texttt{lfotone}, \texttt{rhythm}, \texttt{attack}, \texttt{duty}, \texttt{release}, \texttt{panrate}, \texttt{pandepth},
   \texttt{cross}, \texttt{predelay}, \texttt{lowcut}, \texttt{highcut}, \texttt{width},
   \texttt{mix}, \texttt{output}), nombres avec un point décimal quelle que soit la langue du
   système. Une clé absente prend sa valeur par défaut, une valeur hors bornes est ramenée dans les

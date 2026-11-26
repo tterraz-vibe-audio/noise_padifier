@@ -315,6 +315,8 @@ protected:
         case kParamPanDepth:  set(p, "Pan depth", "pandepth", "%"); break;
         case kParamCross:     set(p, "Cross", "cross", "%"); break;
         case kParamPredelay:  set(p, "Pre-delay", "predelay", "ms"); break;
+        case kParamAttack:    set(p, "Attack", "attack", "%"); break;
+        case kParamRelease:   set(p, "Release", "release", "%"); break;
         }
     }
 

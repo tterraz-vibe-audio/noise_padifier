@@ -152,7 +152,7 @@ the other settings is drawn faint (for example NOTE when TUNE is OFF); it can st
 \ctl{COLOUR}, \ctl{DENSITY} and \ctl{SEED}: the noise to start from.
 
 \subsection{Section 2: TUNE}
-The \ctl{OFF | COMB | CHORD} selector, then \ctl{NOTE}, \ctl{CHORD}, \ctl{RESONANCE} and
+The \ctl{OFF | COMB | CHORD} selector, then \ctl{NOTE}, the \ctl{CHORD} list, \ctl{RESONANCE} and
 \ctl{VIBRATO}. Below: the note and its frequency (or the notes of the chord) and the ring time of
 the combs.
 
@@ -162,8 +162,9 @@ the envelope (at 125\,Hz and 8\,kHz when Bloom is on), the end of the response a
 at 8\,kHz with Damping), the number of samples per path and the latency.
 
 \subsection{Section 4: MOTION}
-Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm (\ctl{RHYTHM},
-\ctl{DUTY}, and the length of a step at the tempo of the host), the stereo (\ctl{PAN RATE},
+Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm (the \ctl{RHYTHM} list
+and the length of a step at the tempo of the host, then three vertical faders \ctl{ATTACK},
+\ctl{DUTY} and \ctl{RELEASE}), the stereo (\ctl{PAN RATE},
 \ctl{PAN DEPTH}, \ctl{CROSS}).
 
 \subsection{Section 5: OUTPUT}
@@ -189,6 +190,12 @@ Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm
 \item drag vertically; \textsf{Shift} for fine adjustment;
 \item mouse wheel (\textsf{Shift}: fine);
 \item double-click or \textsf{Ctrl}+click: default value;
+\item faders (ATTACK, DUTY, RELEASE): drag vertically, the cap follows the mouse (\textsf{Shift}:
+  fine); wheel, double-click and right-click as for the knobs;
+\item whole-number settings (NOTE, SEED): one wheel notch per value;
+\item \ctl{CHORD} and \ctl{RHYTHM} lists: a click opens the list of values (the current one is
+  marked with a dot), a click chooses one, \textsf{Escape} or a click elsewhere closes it; the
+  wheel over the closed box steps to the next or previous value;
 \item right-click: type the value (\textsf{Enter} confirms, \textsf{Escape} cancels; a comma is
   accepted as the decimal separator).
 \end{itemize}
@@ -222,7 +229,9 @@ Bloom & $-100$--+100\,\% & 0 & shift of the peak with frequency \\
 LFO rate & 0.05--10\,Hz & 0.5\,Hz & rate of the LFO (vibrato, colour) \\
 LFO tone & 0--6\dB/oct & 0 & depth of the LFO on the colour \\
 Rhythm & off, 1/1--1/32 & off & gate on the tempo (dotted, triplets) \\
+Attack & 0--100\,\% & 10\,\% & rise at the start of each step \\
 Duty & 5--100\,\% & 50\,\% & open part of each step \\
+Release & 0--100\,\% & 25\,\% & fall after the open part \\
 Pan rate & 0.05--10\,Hz & 0.3\,Hz & rate of the stereo motion \\
 Pan depth & 0--100\,\% & 0 & depth of the stereo motion \\
 Cross & 0--100\,\% & 0 & true stereo: left-right crossings \\
@@ -308,17 +317,62 @@ cycles per note.
 the vibrato of the combs and the colour; LFO TONE swings the slope of the spectrum by $\pm$ its
 value: the pad gets brighter and darker.
 
-\paragraph{Rhythm, Duty.} A gate cuts the response into steps of the chosen division (1/1 to 1/32,
-dotted, triplets) at the tempo of the host (120\,BPM if it gives none); each step is open for
-Duty, with edges of 3\,ms at most. With a short Duty, each sound comes back as separate bursts,
-like rhythmic echoes; longer, the pad pulses. A change of tempo makes the response again.
+\paragraph{Rhythm, Attack, Duty, Release.} A gate cuts the response into steps of the chosen
+division (1/1 to 1/32, dotted, triplets) at the tempo of the host (120\,BPM if it gives none). Each
+step rises during Attack ($\sin^2$ curve), stays open until the end of Duty, then falls during
+Release ($\cos^2$ curve). Attack and Release are in percent of the step, so that the shape follows
+the tempo; their times are shown in the tooltip. Attack is part of Duty (bounded by it); Release
+comes after and may run into the next step, the gate then taking the larger of the two levels (no
+step down). Each edge lasts at least 1\,ms.
+With a short Attack, Release and Duty, each sound comes back as separate bursts, like rhythmic
+echoes; with long edges, the pad breathes or undulates (Duty 100\,\% and a non-zero Attack: an
+amplitude modulation at the rate of the step). A change of tempo makes the response again.
 
 \paragraph{Pan rate, Pan depth.} The pad swings between left and right: at 100\,\%, each side fades
 out in turn (figure~\ref{fig:stereo}).
 
-\paragraph{Cross.} True stereo: besides its direct path, each input reaches the other side through
-a fourth, independent noise. At 0, no crossing (and half the computation); at 100\,\%, as much
-crossed as direct. A source placed on the left then spreads to both sides.
+\paragraph{Cross.} True stereo: sets how much each input also feeds the pad on the opposite
+side.
+
+\emph{Without Cross (0)}, each side is processed on its own: left output = left input convolved
+with a noise, right output = right input convolved with another, independent noise. The pad keeps
+the position of the source: a sound placed hard left gives a pad hard left, nothing on the right.
+
+\emph{With Cross}, each input also reaches the other side through a third and a fourth noise,
+independent too:
+\[
+\text{output}_L = \cos\!\left(c\,\tfrac{\pi}{4}\right) (x_L * h_{LL})
+               + \sin\!\left(c\,\tfrac{\pi}{4}\right) (x_R * h_{RL}),
+\qquad c = \text{Cross} / 100,
+\]
+and likewise on the right. At 50\,\%, the direct path is at $-0.7$\dB{} and the crossed path at
+$-8.3$\dB; at 100\,\%, both are at $-3$\dB: a sound placed hard left gives a pad of the same level
+on both sides, and the pad fills the whole width whatever the position of the source. This is how
+a real room behaves (a ``true stereo'' reverb), where a sound on the left resonates everywhere.
+
+What Cross does not change:
+\begin{itemize}
+\item \textbf{the level}: for an input with independent channels, the energy of each output stays
+  the same ($\cos^2 + \sin^2 = 1$);
+\item \textbf{the width}: the four noises are independent, the two outputs stay decorrelated; the
+  pad stays wide, it does not become mono;
+\item \textbf{a mono source} (the same signal on the left and on the right): the output was
+  already wide and balanced without Cross; Cross then only changes the draw of the noise, not the
+  image. It is only useful for stereo sources whose two sides differ: instruments placed left or
+  right, stereo drum recordings, stereo mixes sent to an auxiliary send.
+\end{itemize}
+
+\emph{Difference with Width}: Width acts afterwards on the pad already made; at 0\,\%, it makes it
+mono (a pad placed on the left ends up in the centre, but narrow). Cross spreads the pad to both
+sides while keeping it wide. The two can be combined.
+
+\emph{Cost}: four convolutions instead of two, about twice the computation (4.5\,\% of one core
+instead of 2.2\,\% at 48\,kHz for a 10\,s response) and the memory, and a slightly longer rebuild;
+only when Cross is above 0. The stereo motion (Pan) is applied afterwards, output by output.
+
+\emph{When to use it}: on an auxiliary send that receives sources placed left or right, when a pad
+confined to one side sounds artificial. Leave it at 0 to keep the position of the source in the
+pad, for a mono source, or to save computation.
 
 \subsection{Output}
 
@@ -357,7 +411,7 @@ Short smear & white noise, 0.4\,s, Swell 20\,\%, Decay $-40$, Low cut 100\,Hz, M
 Reverse swell & 2\,s, Swell 100\,\%, Decay 0, Width 120\,\% \\
 Tuned drone & COMB on A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay $-12$, Mix 60\,\% \\
 Chord pad & CHORD min7 on D3, Resonance 60\,\%, Vibrato 0.15, LFO 0.2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\% \\
-Pulse gate & Rhythm 1/8, Duty 40\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\% \\
+Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\% \\
 Grain cloud & Colour $-1.5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\% \\
 Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 at 0.4\,Hz, Mix 55\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
@@ -459,9 +513,11 @@ number of the path). Each goes through the following steps.
   \text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$, and the colour factor of the LFO
   $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6.02}$. Then, in
   both cases, the $\cos^2$ fade over the last $\min(20\,\text{ms}, L/10)$.
-\item \textbf{Rhythm.} Gate of period (length of the division) $\times\, 60$ / tempo, open for Duty
-  of each period from $t = 0$, $\sin^2$ edges of $\min(3\,\text{ms}, \text{open}/4,
-  \text{closed}/4)$.
+\item \textbf{Rhythm.} Gate of period $T$ = (length of the division) $\times\, 60$ / tempo; each
+  step $k$, from $kT$: $\sin^2$ rise over $\min(\max(\text{Attack}\cdot T, 1\,\text{ms}),
+  \text{Duty}\cdot T)$, held until $\text{Duty}\cdot T$, $\cos^2$ fall over $\max(\text{Release}\cdot T,
+  1\,\text{ms})$; the gate is the largest of the levels of the current step and of the falls of the
+  previous ones. With Duty 100\,\% and no Attack, it stays open.
 \item \textbf{Normalisation.} Energy 1: $\sum_n h(n)^2 = 1$.
 \end{enumerate}
 Then output $o$ is made of the direct path $\times \cos(c\,\pi/4)$ and the crossed path $\times
@@ -648,8 +704,8 @@ computation and gives the host its own state back on return.
   tail, without the space of a reverb.
 \item[Swells.] Reverse swell: each attack rises for 2\,s and then stops short. With a send placed
   a few beats before, the swell leads into the sound.
-\item[Rhythm.] Pulse gate: the pad pulses in eighth notes on the tempo; short DUTY for rhythmic
-  echoes, long for breathing.
+\item[Rhythm.] Pulse gate: the pad pulses in eighth notes on the tempo; short DUTY, ATTACK and
+  RELEASE for crisp rhythmic echoes, long edges for breathing.
 \item[Realism.] DAMPING 3 to 6\dB/oct makes the tail more natural; a negative BLOOM gives a pad
   that warms up as it settles.
 \item[Low end.] Pink and brown noise give a lot of low end: Low cut 60 to 150\,Hz, especially on a
@@ -678,7 +734,7 @@ computation and gives the host its own state back on return.
   parameters: \texttt{colour}, \texttt{length}, \texttt{swell}, \texttt{decay}, \texttt{seed},
   \texttt{density}, \texttt{tune}, \texttt{note}, \texttt{chord}, \texttt{resonance},
   \texttt{damping}, \texttt{bloom}, \texttt{lforate}, \texttt{lfopitch}, \texttt{lfotone},
-  \texttt{rhythm}, \texttt{duty}, \texttt{panrate}, \texttt{pandepth}, \texttt{cross},
+  \texttt{rhythm}, \texttt{attack}, \texttt{duty}, \texttt{release}, \texttt{panrate}, \texttt{pandepth}, \texttt{cross},
   \texttt{predelay}, \texttt{lowcut}, \texttt{highcut}, \texttt{width}, \texttt{mix},
   \texttt{output}), numbers with a decimal point whatever the language of the system. A missing
   key takes its default value, a value out of range is brought back within the range, an unknown

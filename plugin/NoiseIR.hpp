@@ -28,8 +28,10 @@
  *      decay_dB - damping x max(0, log2(f / 250 Hz)) (the highs die sooner),
  *      times (max(f, 20 Hz) / 1 kHz)^(LFO tone x sin(2 pi LFO rate t) / 6.0206);
  *    then, in both cases, the fade cos^2 over the last min(20 ms, length / 10);
- * 5. rhythm: gate of period (beats of the division) x 60 / tempo, open over Duty of each
- *    period from t = 0, raised-cosine edges of min(3 ms, open / 4, closed / 4);
+ * 5. rhythm: gate of period T = (beats of the division) x 60 / tempo; each step k from kT:
+ *    rise sin^2 over Attack (a fraction of T, at least 1 ms, at most Duty), held until Duty,
+ *    fall cos^2 over Release (at least 1 ms) after Duty; the gate is the largest of the current
+ *    step and the falls of the previous ones (Duty 100 % with no attack: always open);
  * 6. unit energy (sum of h^2 = 1).
  * Then the output o (0 left, 1 right) is made of the direct stream o x cos(c pi / 4) and the
  * cross stream x sin(c pi / 4), c = Cross: an input with uncorrelated channels keeps its level.
@@ -72,6 +74,8 @@ struct Settings {
     double lfoTone = 0.0;    // dB / octave
     int rhythm = 0;          // index in kDivisions, 0 off
     double duty = 0.5;       // fraction
+    double attack = 0.1;     // fraction of the step
+    double release = 0.25;   // fraction of the step
     double tempo = kDefaultTempo;   // BPM
     double panRate = 0.3;    // Hz
     double panDepth = 0.0;   // 0 .. 1
@@ -107,6 +111,8 @@ static inline Settings fromParams(const float* const p, const double fs, const d
     s.lfoTone = param(p, kParamLfoTone);
     s.rhythm = PadifierLaw::choice(p[kParamRhythm], kDivisionCount);
     s.duty = param(p, kParamDuty) * 0.01;
+    s.attack = param(p, kParamAttack) * 0.01;
+    s.release = param(p, kParamRelease) * 0.01;
     s.tempo = s.rhythm > 0 ? clampf(tempo, 20.0, 300.0) : kDefaultTempo;   // no rebuild for the tempo when off
     s.panRate = param(p, kParamPanRate);
     s.panDepth = param(p, kParamPanDepth) * 0.01;
@@ -126,7 +132,11 @@ static inline Settings fromParams(const float* const p, const double fs, const d
     if (s.lfoPitch == 0.0 && s.lfoTone == 0.0)
         s.lfoRate = d.lfoRate;
     if (s.rhythm == 0)
+    {
         s.duty = d.duty;
+        s.attack = d.attack;
+        s.release = d.release;
+    }
     if (s.panDepth == 0.0)
         s.panRate = d.panRate;
     return s;
@@ -138,6 +148,7 @@ static inline bool operator==(const Settings& a, const Settings& b)
         && a.seed == b.seed && a.density == b.density && a.tune == b.tune && a.note == b.note && a.chord == b.chord
         && a.resonance == b.resonance && a.damping == b.damping && a.bloom == b.bloom && a.lfoRate == b.lfoRate
         && a.lfoPitch == b.lfoPitch && a.lfoTone == b.lfoTone && a.rhythm == b.rhythm && a.duty == b.duty
+        && a.attack == b.attack && a.release == b.release
         && a.tempo == b.tempo && a.panRate == b.panRate && a.panDepth == b.panDepth && a.cross == b.cross
         && a.fs == b.fs;
 }
@@ -212,27 +223,42 @@ static inline double spectralGain(const Settings& s, const double f, const doubl
 }
 
 // rhythm gate at time t, 0 .. 1
+// one step of the gate, tau s after its start (period T)
+static inline double gateStep(const Settings& s, const double period, const double tau)
+{
+    const double open = s.duty * period;
+    const double rise = std::fmin(std::fmax(s.attack * period, 0.001), open);
+    const double fall = std::fmax(s.release * period, 0.001);
+    if (tau < 0.0)
+        return 0.0;
+    if (tau < rise)
+    {
+        const double r = std::sin(0.5 * M_PI * tau / rise);
+        return r * r;
+    }
+    if (tau < open)
+        return 1.0;
+    if (tau < open + fall)
+    {
+        const double c = std::cos(0.5 * M_PI * (tau - open) / fall);
+        return c * c;
+    }
+    return 0.0;
+}
+
+// rhythm gate at time t, 0 .. 1
 static inline double gate(const Settings& s, const double t)
 {
-    if (s.rhythm <= 0 || s.duty >= 1.0)
+    if (s.rhythm <= 0 || (s.duty >= 1.0 && s.attack <= 0.0))
         return 1.0;
     const double period = kDivisions[s.rhythm].beats * 60.0 / s.tempo;
-    const double open = s.duty * period;
-    const double edge = std::fmin(0.003, 0.25 * std::fmin(open, period - open));
-    const double tau = std::fmod(std::fmax(t, 0.0), period);
-    if (tau >= open)
-        return 0.0;
-    if (tau < edge)
-    {
-        const double r = std::sin(0.5 * M_PI * tau / edge);
-        return r * r;
-    }
-    if (tau > open - edge)
-    {
-        const double r = std::sin(0.5 * M_PI * (open - tau) / edge);
-        return r * r;
-    }
-    return 1.0;
+    const double tt = std::fmax(t, 0.0);
+    const double k = std::floor(tt / period);
+    // the current step and the falls of the two previous ones (a fall lasts at most T + 1 ms)
+    double g = 0.0;
+    for (int j = 0; j < 3 && k - j >= 0.0; ++j)
+        g = std::fmax(g, gateStep(s, period, tt - (k - j) * period));
+    return g;
 }
 
 // stereo motion: gain of output o (0 left, 1 right) at time t

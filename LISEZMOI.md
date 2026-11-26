@@ -19,7 +19,8 @@ manuel § « Les réponses impulsionnelles ») : deux trajets directs (quatre av
 indépendant par trajet (graine (Seed, trajet), SplitMix64) : source lisse ou éparse (Density) →
 couleur (pente Colour par FFT) → peignes (Tune, Note, Chord, Resonance, vibrato ; amorce de
 min(T60, 5 s)) → enveloppe (dans le temps, ou par TFCT si Damping, Bloom ou LFO tone) → porte
-(Rhythm au tempo de l'hôte) → énergie 1 ; puis direct × cos(c π/4) + croisé × sin(c π/4) et
+(Rhythm au tempo de l'hôte ; par pas : montée sin² Attack, palier jusqu'à Duty, descente cos²
+Release, en % du pas, fronts ≥ 1 ms ; maximum du pas en cours et des descentes précédentes) → énergie 1 ; puis direct × cos(c π/4) + croisé × sin(c π/4) et
 panoramique (Pan). Tables communes aux flux, flux en parallèle (fils du greffon) : reconstruction
 0,02 s par défaut, pire cas 0,26 s à 48 kHz et 1,05 s à 192 kHz (mémoire passagère ~340 Mo).
 Paramètres sans effet ramenés à leur défaut dans `fromParams` (pas de reconstruction inutile).
@@ -47,7 +48,7 @@ Chaîne : (L, R) → convolution → pré-retard (0-500 ms, fondu de 30 ms) → 
 SOURCE : Colour (-6..+6 dB/oct, -3 rose), Density (10-10 000 /s, max = lisse), Seed.
 TUNE : Tune (off, comb, chord), Note (C1-C7), Chord (9), Resonance (20 ms-5 s), LFO pitch
 (« Vibrato », demi-tons). ENVELOPE : Length, Swell, Decay, Damping (dB/oct au-dessus de 250 Hz),
-Bloom (±100 %). MOTION : LFO rate, LFO tone, Rhythm (divisions, pointées, triolets), Duty, Pan
+Bloom (±100 %). MOTION : LFO rate, LFO tone, Rhythm (divisions, pointées, triolets), Attack, Duty, Release (faders), Pan
 rate, Pan depth, Cross. OUTPUT : Mix, Output, Low cut, High cut, Pre-delay, Width ; Bypass.
 Numéros des paramètres de 1.0 gardés (Noise → Colour), nouveaux à la suite (`PadifierParams.hpp`).
 
@@ -59,7 +60,9 @@ réglés à la lecture des lois, **pas à l'oreille** (`makePreset` : défauts +
 1200 × 760, redimensionnable, HiDPI. Cinq sections dans l'ordre du signal : **1 SOURCE**, **2 TUNE**
 (sélecteur OFF | COMB | CHORD ; notes et temps de résonance), **3 ENVELOPE** (pic par fréquence,
 fin, échantillons, latence), **4 MOTION** (période du LFO, durée d'un pas au tempo), **5 OUTPUT** ;
-boutons sans effet grisés (`knobActive`). En bas : **carte temps-fréquence** de la réponse (image
+boutons sans effet grisés (`knobActive`) ; Chord et Rhythm en listes déroulantes (`kLists` : clic,
+molette d'une valeur ; un bouton tournant y restait bloqué à la molette, le cran arrondi revenant
+à la même valeur) ; molette d'un cran par valeur sur Note et Seed. En bas : **carte temps-fréquence** de la réponse (image
 200 × 72 de `spectralGain` × porte, refaite seulement quand la réponse ou le thème change ; notes
 des peignes avec vibrato), **spectre du pad**, vu-mètres IN, PAD, OUT.
 Repris de Tinplate : boutons (glisser, Maj, molette, double-clic, clic droit pour saisir), bulles
