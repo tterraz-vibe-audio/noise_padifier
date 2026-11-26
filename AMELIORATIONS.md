@@ -1,7 +1,8 @@
 # Noise Padifier - améliorations
 
-Statut : fait, publié en **1.1.0** (release `v1.1.0`, 2026-11-26). Restent les pistes non faites de `LISEZMOI.md`. Tout ajout qui change la sortie
-demande une nouvelle version (1.1.0).
+Statut : 1.1.0 publiée (release `v1.1.0`, 2026-11-26) ; **1.2.0 prête, non publiée** (§ « 1.2.0 »
+en fin de fichier). Restent les pistes non faites de `LISEZMOI.md`. Tout ajout qui change la
+sortie demande une nouvelle version.
 
 Principe commun : un traitement du bruit modifie la réponse impulsionnelle ; il est calculé à la
 construction de la réponse (coût nul pendant la lecture) et ne change que par les fondus de
@@ -83,3 +84,17 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
   `fig_pad`), README, LISEZMOI, installateur en 1.1.0.
 - **Publié** : commit `4247136`, étiquette et release GitHub `v1.1.0` (installateur, archives
   Windows et Linux, deux manuels).
+
+## 1.2.0 (session 70, 2026-11-26 ; non publiée)
+- Porte rythmique : montée sin² Attack, palier jusqu'à Duty, descente cos² Release (en % du pas,
+  ≥ 1 ms ; une descente peut déborder sur le pas suivant) ; Attack, Duty, Release en faders ;
+  Chord et Rhythm en listes déroulantes (commit `ca5ef86`).
+- **Decay** : part de la longueur prise par la descente finale jusqu'à -60 dB (0-100 %, 75 % par
+  défaut), tenue à plein niveau entre le pic et la descente ; Damping : perte supplémentaire
+  croissant du pic à la fin. Préréglages d'usine convertis. Une valeur de 1.1 (dB) est relue 0 %.
+- **Length** jusqu'à 30 s ; **convolution à trois étages** (tête 256, étage 1 de M1, étage 2 de
+  4 M1) pour garder les réponses longues peu coûteuses (30 s, 48 kHz : 2,2 %, 3,9 % avec Cross).
+- **Thème Pearl opalescent**, accordé aux couleurs de l'analyseur (décision de l'utilisateur :
+  l'ancien Pearl, gris froid et ocre, jurait avec la carte) ; Dusk inchangé.
+- Vérifié : tests des réponses et du DSP (deux compilations), `./build.sh` complet sans
+  avertissement, validateur 47/47 Linux et Windows, manuels FR/EN de 18 pages sans avertissement.

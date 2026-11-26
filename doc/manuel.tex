@@ -33,7 +33,7 @@
 
 \title{\textsf{NOISE} \textcolor{violet}{\textbf{PADIFIER}}\\[4pt]
 \large Manuel d'utilisation et description de l'algorithme}
-\author{Version 1.1.0}
+\author{Version 1.2.0}
 \date{}
 
 \begin{document}
@@ -52,7 +52,7 @@
 
 Noise Padifier transforme n'importe quel son en nappe (\emph{pad}). Le signal est convolué avec
 une réponse impulsionnelle faite de \textbf{bruit} sous une \textbf{enveloppe} réglable, longue
-de 0,1 à 10\,s : chaque note, chaque attaque, est étalée sur toute la durée de cette réponse.
+de 0,1 à 30\,s : chaque note, chaque attaque, est étalée sur toute la durée de cette réponse.
 Comme le bruit contient toutes les fréquences, le timbre de la source est gardé (ses harmoniques
 restent à leur place) mais son évolution dans le temps disparaît : une note brève devient un son
 tenu qui monte puis s'éteint selon l'enveloppe (figure~\ref{fig:pad}).
@@ -87,7 +87,7 @@ Pommier (licence de FFTPACK, de type BSD).
 % ==============================================================================================
 \section{Installation}
 
-\paragraph{Windows.} Lancer l'installateur \texttt{Noise-Padifier-1.1.0-setup.exe}. Il installe
+\paragraph{Windows.} Lancer l'installateur \texttt{Noise-Padifier-1.2.0-setup.exe}. Il installe
 le VST3 (obligatoire) et, si on le coche, le CLAP et les manuels (français et anglais), puis
 ajoute un désinstalleur (\og Programmes et fonctionnalités\fg). À la main, copier :
 \begin{itemize}
@@ -160,8 +160,8 @@ résonance des peignes.
 
 \subsection{Section 3 : ENVELOPE}
 \ctl{LENGTH}, \ctl{SWELL}, \ctl{DECAY}, \ctl{DAMPING} et \ctl{BLOOM}. Au-dessous : l'instant du pic
-de l'enveloppe (à 125\,Hz et 8\,kHz quand Bloom est actif), la fin de la réponse et son niveau (et
-à 8\,kHz avec Damping), le nombre d'échantillons par trajet et la latence.
+de l'enveloppe (à 125\,Hz et 8\,kHz quand Bloom est actif), le début de la descente et la fin de la réponse (et le
+niveau final à 8\,kHz avec Damping), le nombre d'échantillons par trajet et la latence.
 
 \subsection{Section 4 : MOTION}
 Trois rangées : le LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, et sa période), le rythme (la liste \ctl{RHYTHM}
@@ -222,9 +222,9 @@ Chord & 9 accords & major & sorte d'accord \\
 Resonance & 0--100\,\% & 50\,\% & temps de résonance des peignes (20\,ms à 5\,s) \\
 Vibrato & 0--12 demi-tons & 0 & profondeur du LFO sur la note \\
 \multicolumn{4}{@{}l}{\textsf{3 ENVELOPE}} \\
-Length & 0,1--10\,s & 3\,s & longueur de la réponse \\
+Length & 0,1--30\,s & 3\,s & longueur de la réponse \\
 Swell & 0--100\,\% & 25\,\% & montée de l'enveloppe, en part de la longueur \\
-Decay & $-60$--0\dB & $-30$\dB & niveau de l'enveloppe à la fin \\
+Decay & 0--100\,\% & 75\,\% & part de la longueur prise par la descente \\
 Damping & 0--12\dB/oct & 0 & perte des aigus à la fin \\
 Bloom & $-100$--+100\,\% & 0 & déplacement du pic avec la fréquence \\
 \multicolumn{4}{@{}l}{\textsf{4 MOTION}} \\
@@ -297,13 +297,19 @@ LFO RATE. Comme tous les mouvements, il part de l'attaque de chaque son (section
 en même temps que le son ; à 25\,\% d'une réponse de 3\,s, il monte pendant 0,75\,s ; à 100\,\%, il
 monte pendant toute la réponse puis s'arrête net (effet de \og réverbération inversée\fg).
 
-\paragraph{Decay.} Niveau de l'enveloppe à la fin de la réponse, après le pic, en ligne droite en
-décibels : à $-60$\dB, le pad s'éteint comme une réverbération ; à 0\dB, il reste au même niveau
-jusqu'au bout (nappe tenue, coupée par un fondu de 20\,ms au plus). Figure~\ref{fig:enveloppes}.
+\paragraph{Decay.} Part de la longueur prise par la descente finale, qui finit toujours au
+minimum : $-60$\dB, puis le silence (fondu de 20\,ms au plus). La descente est une droite en
+décibels qui occupe les derniers Decay\,\% de la réponse ; entre le pic et le début de la descente,
+la nappe est tenue à plein niveau. Par exemple, Swell 25\,\% et Decay 50\,\% : montée de 0 à 25\,\%,
+tenue de 25 à 50\,\%, descente de 50 à 100\,\%. Si la descente demandée est plus longue que ce qui
+reste après le pic, elle part du pic. Decay 0\,\% : tenue jusqu'au bout (nappe tenue, ou montée
+coupée net avec Swell 100\,\%) ; Decay élevé : le pad s'éteint dès le pic, comme une
+réverbération. Figure~\ref{fig:enveloppes}.
 
 \paragraph{Damping.} Les aigus s'éteignent plus tôt que les graves, comme dans une salle : à la fin
-de la réponse, chaque octave au-dessus de 250\,Hz perd Damping décibels de plus que Decay (avec
-6\dB/oct et Decay $-30$\dB, 8\,kHz finit à $-60$\dB). La nappe s'assombrit en s'éteignant.
+de la réponse, chaque octave au-dessus de 250\,Hz a perdu Damping décibels de plus, la perte
+croissant régulièrement depuis le pic (avec 6\dB/oct, 8\,kHz finit à $-90$\dB{} au lieu de
+$-60$). La nappe s'assombrit en s'éteignant, et même pendant la tenue.
 
 \paragraph{Bloom.} Le pic de l'enveloppe se déplace avec la fréquence, d'au plus la moitié de la
 longueur sur quatre octaves de part et d'autre de 1\,kHz : positif, les aigus arrivent plus tard
@@ -315,7 +321,7 @@ longueur sur quatre octaves de part et d'autre de 1\,kHz : positif, les aigus ar
 inscrits dans la réponse : ils commencent à l'attaque de chaque son, et non sur le temps du
 morceau. Sur des notes espacées, chacune fait le même mouvement ; sur un jeu dense, les mouvements
 des notes successives se superposent avec un décalage et s'adoucissent. Une réponse dure au plus
-10\,s : un LFO lent ne fait qu'un cycle ou deux par note.
+30\,s : un LFO lent ne fait que quelques cycles par note.
 
 \paragraph{LFO rate, LFO tone.} Vitesse du LFO (sinusoïde partant de 0 à l'attaque), commun au
 vibrato des peignes et à la couleur ; LFO TONE fait osciller la pente du spectre de $\pm$ sa
@@ -371,8 +377,8 @@ Ce que Cross ne change pas :
 mono (un pad placé à gauche se retrouve au centre, mais étroit). Cross répartit le pad des deux
 côtés tout en le gardant large. Les deux se combinent.
 
-\emph{Coût} : quatre convolutions au lieu de deux, soit à peu près le double du calcul (4,5\,\%
-d'un cœur au lieu de 2,2\,\% à 48\,kHz pour une réponse de 10\,s) et de la mémoire, et une
+\emph{Coût} : quatre convolutions au lieu de deux, soit à peu près le double du calcul (2,2\,\%
+d'un cœur au lieu de 1,2\,\% à 48\,kHz pour une réponse de 10\,s) et de la mémoire, et une
 reconstruction un peu plus longue ; seulement quand Cross est au-dessus de 0. Le mouvement stéréo
 (Pan) s'applique ensuite, sortie par sortie.
 
@@ -408,18 +414,18 @@ passe de l'ancien retard au nouveau par un fondu enchaîné de 30\,ms.
 \toprule
 Nom & Réglages (les autres à leur défaut) \\
 \midrule
-Default & bruit rose, 3\,s, Swell 25\,\%, Decay $-30$\dB, Mix 50\,\% \\
-Soft pad & 4\,s, Swell 50\,\%, Decay $-24$, Damping 3, Low cut 80\,Hz, High cut 8\,kHz, Width 120\,\%, Mix 60\,\% \\
-Endless wash & 8\,s, Swell 40\,\%, Decay $-6$, Cross 40\,\%, Width 140\,\%, Mix 70\,\% \\
-Dark cloud & Colour $-4{,}5$, 6\,s, Swell 60\,\%, Decay $-18$, Damping 6, High cut 3\,kHz, Mix 60\,\% \\
-Airy halo & bruit blanc, Swell 30\,\%, Decay $-36$, Bloom +50\,\%, Low cut 400\,Hz, Width 150\,\%, Mix 35\,\% \\
-Short smear & bruit blanc, 0,4\,s, Swell 20\,\%, Decay $-40$, Low cut 100\,Hz, Mix 30\,\% \\
-Reverse swell & 2\,s, Swell 100\,\%, Decay 0, Width 120\,\% \\
-Tuned drone & COMB sur A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay $-12$, Mix 60\,\% \\
-Chord pad & CHORD min7 sur D3, Resonance 60\,\%, Vibrato 0,15, LFO 0,2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\% \\
-Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% à 1\,Hz, 4\,s, Swell 10\,\% \\
-Grain cloud & Colour $-1{,}5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\% \\
-Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 à 0,4\,Hz, Mix 55\,\% \\
+Default & bruit rose, 3\,s, Swell 25\,\%, Decay 75\,\%, Mix 50\,\% \\
+Soft pad & 4\,s, Swell 50\,\%, Decay 50\,\%, Damping 3, Low cut 80\,Hz, High cut 8\,kHz, Width 120\,\%, Mix 60\,\% \\
+Endless wash & 8\,s, Swell 40\,\%, Decay 20\,\%, Cross 40\,\%, Width 140\,\%, Mix 70\,\% \\
+Dark cloud & Colour $-4{,}5$, 6\,s, Swell 60\,\%, Decay 40\,\%, Damping 6, High cut 3\,kHz, Mix 60\,\% \\
+Airy halo & bruit blanc, Swell 30\,\%, Decay 70\,\%, Bloom +50\,\%, Low cut 400\,Hz, Width 150\,\%, Mix 35\,\% \\
+Short smear & bruit blanc, 0,4\,s, Swell 20\,\%, Decay 80\,\%, Low cut 100\,Hz, Mix 30\,\% \\
+Reverse swell & 2\,s, Swell 100\,\%, Decay 0\,\%, Width 120\,\% \\
+Tuned drone & COMB sur A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay 30\,\%, Mix 60\,\% \\
+Chord pad & CHORD min7 sur D3, Resonance 60\,\%, Vibrato 0,15, LFO 0,2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\%, Decay 50\,\% \\
+Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% à 1\,Hz, 4\,s, Swell 10\,\%, Decay 90\,\% \\
+Grain cloud & Colour $-1{,}5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\%, Decay 70\,\% \\
+Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 à 0,4\,Hz, Mix 55\,\%, Decay 65\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
 \bottomrule
 \end{tabularx}
@@ -511,12 +517,14 @@ $N = \mathrm{round}(\text{Length} \cdot f_s)$ échantillons, à partir d'un brui
   résonance ; les sorties des peignes sont additionnées. Les peignes tournent sur un bruit
   commencé $\min(T_{60}, 5\,\text{s})$ avant $t = 0$, pour résonner régulièrement dès le début.
 \item \textbf{Enveloppe.} Sans Damping, Bloom ni LFO tone, l'enveloppe $e(t)$ est appliquée dans le
-  temps (montée $\sin^2$ jusqu'à $T_a$ = Swell $\cdot$ Length, puis droite en dB jusqu'à Decay).
+  temps : montée $\sin^2$ jusqu'à $T_a$ = Swell $\cdot$ Length, tenue à 1 jusqu'au début de la
+  descente $T_f = \max(L\,(1 - \text{Decay}), T_a)$, puis droite en dB jusqu'à $-60$\dB{} en $L$.
   Sinon, elle dépend de la fréquence et est appliquée par transformée de Fourier à court terme
   (fenêtres racine de Hann de 2048 échantillons à 48\,kHz, recouvrement de 3/4) : pour chaque trame
   et chaque fréquence, le gain de l'enveloppe avec un pic à $T_a(f) = T_a + \text{Bloom} \cdot
-  \frac{L}{2} \cdot u(f)$, $u(f) = \log_2(f / 1\,\text{kHz})/4$ borné à $[-1, 1]$, un niveau final
-  $\text{Decay} - \text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$, et le facteur de
+  \frac{L}{2} \cdot u(f)$, $u(f) = \log_2(f / 1\,\text{kHz})/4$ borné à $[-1, 1]$, la descente à
+  partir de $\max(L\,(1 - \text{Decay}), T_a(f))$, une perte supplémentaire croissant du pic à
+  $\text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$\dB{} en $L$, et le facteur de
   couleur du LFO $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6{,}02}$.
   Puis, dans les deux cas, le fondu $\cos^2$ des dernières $\min(20\,\text{ms}, L/10)$.
 \item \textbf{Rythme.} Porte de période $T$ = (durée de la division) $\times\, 60$ / tempo ;
@@ -536,8 +544,9 @@ efficace de l'entrée, quels que soient les réglages. Une note isolée, elle, e
 baisse d'autant plus que la réponse est longue, son énergie est conservée.
 
 Les flux sont calculés en parallèle, dans des fils du greffon. Une reconstruction prend 0,02\,s
-avec les réglages par défaut ; dans le pire cas (10\,s, accord de quatre notes, tous les
-traitements, Cross), 0,26\,s à 48\,kHz et 1,05\,s à 192\,kHz. Chaque traitement est vérifié par
+avec les réglages par défaut ; dans le pire cas (30\,s, accord de quatre notes, tous les
+traitements, Cross), 0,66\,s à 48\,kHz et 2,7\,s à 192\,kHz, avec jusqu'à 620\,Mo de mémoire
+passagère à 192\,kHz. Chaque traitement est vérifié par
 les tests sur les réponses produites, contre sa loi (couleur à 0,7\dB{} près par octave, damping à
 0,8\dB, bloom à 0,15\,s, vibrato à 0,4\,Hz\ldots).
 
@@ -583,46 +592,55 @@ porte rythmique, bruit épars (impulsions isolées).}
 
 \subsection{La convolution}\label{sec:convolution}
 
-Une réponse de 10\,s à 48\,kHz compte 480\,000 échantillons : la convolution directe coûterait
-près d'un milliard de multiplications par seconde et par canal. Le greffon la calcule dans le
-domaine fréquentiel, par blocs (\emph{convolution partitionnée uniforme} en
-recouvrement-sauvegarde, FFT réelles de pffft), en deux étages :
+Une réponse de 30\,s à 48\,kHz compte 1\,440\,000 échantillons : la convolution directe
+coûterait des milliards de multiplications par seconde et par canal. Le greffon la calcule dans le
+domaine fréquentiel, par blocs (\emph{convolution partitionnée} en recouvrement-sauvegarde, FFT
+réelles de pffft), en trois étages de blocs de plus en plus grands :
 
 \begin{center}
-\begin{tikzpicture}[x=0.55mm, y=1mm]
-\fill[violet!25] (0,0) rectangle (32,6);
-\foreach \i in {0,4,...,28} \draw[violet] (\i,0) rectangle (\i+4,6);
-\fill[amber!25] (32,0) rectangle (240,6);
-\foreach \i in {32,48,...,224} \draw[amber] (\i,0) rectangle (\i+16,6);
-\draw[ink] (0,0) rectangle (240,6);
-\node[font=\scriptsize, above] at (16,6) {tête};
-\node[font=\scriptsize, above] at (136,6) {queue};
+\begin{tikzpicture}[x=0.5mm, y=1mm]
+\fill[violet!25] (0,0) rectangle (16,6);
+\foreach \i in {0,4,8,12} \draw[violet] (\i,0) rectangle (\i+4,6);
+\fill[amber!20] (16,0) rectangle (64,6);
+\foreach \i in {16,24,...,56} \draw[amber] (\i,0) rectangle (\i+8,6);
+\fill[amber!40] (64,0) rectangle (288,6);
+\foreach \i in {64,96,...,256} \draw[amber!80!black] (\i,0) rectangle (\i+32,6);
+\draw[ink] (0,0) rectangle (288,6);
+\node[font=\scriptsize, above] at (8,6) {tête};
+\node[font=\scriptsize, above] at (40,6) {étage 1};
+\node[font=\scriptsize, above] at (176,6) {étage 2};
 \node[font=\scriptsize, below] at (0,0) {0};
-\node[font=\scriptsize, below] at (32,0) {$2M$};
-\node[font=\scriptsize, below] at (240,0) {$N$};
-\draw[<->] (0,-6) -- node[below, font=\scriptsize] {blocs de $B = 256$} (32,-6);
-\draw[<->] (32,-6) -- node[below, font=\scriptsize] {blocs de $M$ = 4096 à 16\,384} (240,-6);
+\node[font=\scriptsize, below] at (16,0) {$2M_1$};
+\node[font=\scriptsize, below] at (64,0) {$2M_2$};
+\node[font=\scriptsize, below] at (288,0) {$N$};
+\draw[<->] (64,-7) -- node[below, font=\scriptsize] {blocs de $M_2 = 4 M_1$} (288,-7);
 \end{tikzpicture}
 \end{center}
 
 \begin{itemize}
-\item \textbf{Tête} : les $2M$ premiers échantillons de la réponse, en blocs de $B = 256$. À
+\item \textbf{Tête} : les $2M_1$ premiers échantillons de la réponse, en blocs de $B = 256$. À
   chaque bloc de 256 échantillons d'entrée : une FFT de 512 points, un produit par bloc de la
   réponse, une FFT inverse. C'est cet étage qui fixe la latence : 256 échantillons.
-\item \textbf{Queue} : le reste, en blocs de $M$ = 4096 échantillons ($f_s \leq 50$\,kHz), 8192
-  ($\leq 100$\,kHz) ou 16\,384. Le bloc $j$ de l'entrée n'agit sur la sortie qu'à partir de
-  l'échantillon $jM + 2M$ : le greffon a donc $M$ échantillons de temps pour calculer sa
-  contribution (une FFT, les produits avec tous les blocs de la queue, une FFT inverse) et la
-  répartit également sur les $M/B$ blocs de 256 qui précèdent. Il n'y a ni pointe de calcul ni
-  fil supplémentaire dans le traitement audio.
+\item \textbf{Étage 1} : les échantillons de $2M_1$ à $2M_2$, en six blocs de $M_1$ = 4096
+  échantillons ($f_s \leq 50$\,kHz), 8192 ($\leq 100$\,kHz) ou 16\,384.
+\item \textbf{Étage 2} : le reste, en blocs de $M_2 = 4 M_1$.
 \end{itemize}
-Les deux étages partagent les spectres de l'entrée déjà calculés (lignes à retard fréquentielles) ;
-avec Cross, chaque sortie ajoute les produits des réponses croisées par les spectres de l'autre
-entrée, ce qui double les produits sans transformée de plus.
+Dans un étage de blocs de $M$, le bloc $j$ de l'entrée n'agit sur la sortie qu'à partir de
+l'échantillon $jM + 2M$ : le greffon a donc $M$ échantillons de temps pour calculer sa
+contribution et la répartit également sur les $M/B$ blocs de 256 qui précèdent (les FFT des deux
+entrées au premier, les produits ensuite, les FFT inverses des deux sorties aux deux derniers). Il
+n'y a ni pointe de calcul ni fil supplémentaire dans le traitement audio. Le coût par échantillon
+d'un étage est proportionnel au nombre de ses blocs, divisé par leur taille : les grands blocs du
+dernier étage rendent les réponses longues peu coûteuses (à 30\,s et 48\,kHz, 124 produits complexes
+par échantillon et par sortie au lieu de 382 avec un seul étage de queue).
+
+Chaque étage a ses spectres de l'entrée (lignes à retard fréquentielles) ; avec Cross, chaque
+sortie ajoute les produits des réponses croisées par les spectres de l'autre entrée, ce qui double
+les produits sans transformée de plus.
 Le résultat est celui de la convolution exacte, aux arrondis du calcul en simple précision près :
 les tests le comparent à une convolution directe en double précision, avec un écart d'au plus
-$4{,}4 \cdot 10^{-7}$ de la crête, pour des réponses de 1 échantillon à $5M$ et à 48, 96 et
-192\,kHz, et de $3{,}5 \cdot 10^{-7}$ avec les réponses croisées.
+$4{,}4 \cdot 10^{-7}$ de la crête, pour des réponses de 1 échantillon à $4M_2$ (les trois étages)
+et à 48, 96 et 192\,kHz, et de $3{,}5 \cdot 10^{-7}$ avec les réponses croisées.
 
 \paragraph{Coût.} Mesuré sur un cœur (blocs de 256, stéréo) :
 \begin{center}
@@ -631,16 +649,19 @@ $4{,}4 \cdot 10^{-7}$ de la crête, pour des réponses de 1 échantillon à $5M$
 \toprule
 Length & 48\,kHz & 96\,kHz & 192\,kHz \\
 \midrule
-3\,s  & 1,0\,\% & 3,0\,\% & 8,8\,\% \\
-10\,s & 2,2\,\% & 5,4\,\% & 15\,\% \\
-10\,s, Cross & 4,5\,\% & 10\,\% & 25\,\% \\
+3\,s  & 0,9\,\% & 2,4\,\% & 7,6\,\% \\
+10\,s & 1,2\,\% & 3,1\,\% & 9,1\,\% \\
+10\,s, Cross & 2,2\,\% & 5,7\,\% & 16\,\% \\
+30\,s & 2,2\,\% & 5,5\,\% & 13\,\% \\
+30\,s, Cross & 3,9\,\% & 9,3\,\% & 24\,\% \\
 \bottomrule
 \end{tabular}
 \end{center}
-Les traitements du bruit ne coûtent rien pendant la lecture : ils sont dans la réponse. La mémoire
-occupée est de l'ordre de 20\,Mo à 48\,kHz (40\,Mo avec Cross) ; pendant une reconstruction, le
-calcul de la réponse en demande davantage, brièvement (jusqu'à 340\,Mo dans le pire cas à
-192\,kHz).
+Les valeurs varient de quelques pour cent d'une mesure à l'autre. Les traitements du
+bruit ne coûtent rien pendant la lecture : ils sont dans la réponse. La mémoire réservée pour les
+spectres de l'entrée est de l'ordre de 25\,Mo à 48\,kHz et 90\,Mo à 192\,kHz ; chaque réponse en
+ajoute autant pour 30\,s (deux fois plus avec Cross), et deux réponses coexistent pendant un
+changement.
 
 \subsection{Changement de réponse}\label{sec:changement}
 
@@ -648,11 +669,13 @@ Les réglages des sections SOURCE, TUNE, ENVELOPE et MOTION définissent la rép
 un oblige à la refaire, de même qu'un changement du tempo de l'hôte quand RHYTHM est actif. Un
 réglage sans effet avec les autres (NOTE quand TUNE est sur OFF, par exemple) ne la refait pas.
 Ce travail est fait dans un fil du greffon, jamais dans le traitement audio, qui continue avec
-l'ancienne réponse. Quand la nouvelle est prête, elle est prise au début d'un bloc de queue.
+l'ancienne réponse. Quand la nouvelle est prête, elle est prise au début d'un bloc de l'étage 2.
 Comme les spectres de l'entrée ne dépendent pas de la réponse, la nouvelle réponse dispose
 d'emblée de tout le passé du signal : le pad ne repart pas de zéro. La sortie passe de l'ancienne
-réponse à la nouvelle par un fondu linéaire de $M$ échantillons (85\,ms à 48\,kHz), puis
-l'ancienne est libérée, dans le fil du greffon.
+réponse à la nouvelle par un fondu linéaire de $M_1$ échantillons (85\,ms à 48\,kHz), un bloc de
+l'étage 2 plus tard (le temps que tous les étages aient la nouvelle réponse), puis l'ancienne est
+libérée, dans le fil du greffon. Un changement s'entend ainsi au plus 0,7\,s après avoir été
+construit.
 
 Tourner un de ces boutons pendant la lecture donne donc une suite de fondus, sans clic, avec un
 léger retard. À l'activation du greffon (début de lecture ou de rendu), la réponse est construite
@@ -704,7 +727,7 @@ calcul et rend à l'hôte son propre état en sortie.
 \begin{description}
 \item[Nappe à partir d'un instrument.] Soft pad ou Endless wash en départ auxiliaire, Mix à
   100\,\% : des notes jouées détaché deviennent un fond continu. Plus Length est long et Decay
-  proche de 0, plus la nappe est stable.
+  petit (longue tenue), plus la nappe est stable.
 \item[Nappe accordée.] Tuned drone ou Chord pad sur une source riche (batterie, bruit, guitare
   saturée) : la nappe prend la note ou l'accord. Accorder NOTE sur la tonalité du morceau ; monter
   RESONANCE pour des notes plus nettes.
@@ -748,6 +771,9 @@ calcul et rend à l'hôte son propre état en sortie.
   \texttt{mix}, \texttt{output}), nombres avec un point décimal quelle que soit la langue du
   système. Une clé absente prend sa valeur par défaut, une valeur hors bornes est ramenée dans les
   bornes, une ligne inconnue est ignorée. Copier le fichier suffit à partager un préréglage.
+\item[Depuis la 1.1.] Decay, qui était le niveau final en dB, est devenu la part de la longueur
+  prise par la descente : une valeur enregistrée en 1.1 (de $-60$ à 0) est lue comme 0\,\%, une
+  nappe tenue jusqu'au bout ; à régler de nouveau.
 \item[Depuis la 1.0.] Le réglage Noise (blanc ou rose) est devenu Colour : un projet ou un
   préréglage de la 1.0 garde ses autres réglages, la couleur revient au rose ($-3$) et les
   nouveaux réglages à leur défaut, si bien que le son est celui de la 1.0 en bruit rose.
@@ -759,7 +785,7 @@ calcul et rend à l'hôte son propre état en sortie.
 \item Latence de 256 échantillons : compensée par l'hôte, mais audible si l'on joue en direct à
   travers le greffon avec un très petit tampon.
 \item Un changement des réglages de la réponse arrive avec un léger retard (le temps de la refaire,
-  jusqu'à 1\,s dans le pire cas à 192\,kHz) ; en rendu hors ligne plus rapide que le temps réel,
+  jusqu'à 2,7\,s dans le pire cas à 192\,kHz, puis au plus 0,7\,s jusqu'au fondu) ; en rendu hors ligne plus rapide que le temps réel,
   une automatisation de ces réglages peut donc tomber un peu plus tard qu'à la lecture.
 \item Les mouvements (LFO, rythme, stéréo) partent de l'attaque de chaque son, pas du temps du
   morceau.

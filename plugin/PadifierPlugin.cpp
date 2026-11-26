@@ -66,7 +66,7 @@ static inline float gainToDb(const float g, const float floorDb)
     return g > 0.0f ? std::fmax(20.0f * std::log10(g), floorDb) : floorDb;
 }
 
-static const double kMaxLength = 10.0;   // s: kPadifierRanges[kParamLength].max
+static const double kMaxLength = kPadifierRanges[kParamLength].max;   // s
 
 // Linear ramp to a target in a given number of samples, then exactly the target.
 template <typename T>
@@ -220,7 +220,7 @@ protected:
     }
     const char* getMaker() const override { return "Padifier"; }
     const char* getLicense() const override { return "GPL-3.0-or-later"; }
-    uint32_t getVersion() const override { return d_version(1, 1, 0); }
+    uint32_t getVersion() const override { return d_version(1, 2, 0); }
 
     void initParameter(const uint32_t index, Parameter& p) override
     {
@@ -243,7 +243,7 @@ protected:
             p.hints |= kParameterIsLogarithmic;
             break;
         case kParamSwell:  set(p, "Swell", "swell", "%"); break;
-        case kParamDecay:  set(p, "Decay", "decay", "dB"); break;
+        case kParamDecay:  set(p, "Decay", "decay", "%"); break;
         case kParamSeed:
             set(p, "Seed", "seed", "");
             p.hints |= kParameterIsInteger;

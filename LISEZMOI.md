@@ -2,8 +2,9 @@
 
 Effet « pad » par convolution : chaque canal de l'entrée est convolué avec du **bruit façonné**
 (couleur, densité, peignes accordés sur une note ou un accord, enveloppe par fréquence, LFO,
-rythme sur le tempo, mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 10 s) ; tout son est
-étalé en nappe. Version 1.1.0 (traitements du bruit : `AMELIORATIONS.md`).
+rythme sur le tempo, mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 30 s) ; tout son est
+étalé en nappe. Version 1.2.0 (traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
+même fichier, § « 1.2.0 »).
 C++ avec DPF, interface NanoVG, structure reprise de Tinplate et Brimstone.
 Formats : VST3 et CLAP pour Windows 64 bits ; VST3, CLAP et LV2 pour Linux.
 **Licence : GPL 3 ou ultérieure** (`COPYING`) ; FFT : pffft de Julien Pommier (licence de
@@ -22,22 +23,30 @@ min(T60, 5 s)) → enveloppe (dans le temps, ou par TFCT si Damping, Bloom ou LF
 (Rhythm au tempo de l'hôte ; par pas : montée sin² Attack, palier jusqu'à Duty, descente cos²
 Release, en % du pas, fronts ≥ 1 ms ; maximum du pas en cours et des descentes précédentes) → énergie 1 ; puis direct × cos(c π/4) + croisé × sin(c π/4) et
 panoramique (Pan). Tables communes aux flux, flux en parallèle (fils du greffon) : reconstruction
-0,02 s par défaut, pire cas 0,26 s à 48 kHz et 1,05 s à 192 kHz (mémoire passagère ~340 Mo).
+0,02 s par défaut, pire cas (30 s, tout activé, Cross) 0,66 s à 48 kHz et 2,7 s à 192 kHz
+(mémoire passagère ~620 Mo).
 Paramètres sans effet ramenés à leur défaut dans `fromParams` (pas de reconstruction inutile).
 
 **Convolution** (`plugin/Convolver.hpp`), sans allocation dans le fil audio : sortie o = entrée o ∗
-h[o][o] (+ autre entrée ∗ h[1-o][o] avec Cross) ; deux étages de convolution partitionnée uniforme
-(recouvrement-sauvegarde) qui partagent les lignes à retard fréquentielles des entrées :
-- tête : blocs B = 256, échantillons [0, 2M) ; **latence 256 échantillons** (déclarée à l'hôte ;
+h[o][o] (+ autre entrée ∗ h[1-o][o] avec Cross) ; trois étages de convolution partitionnée
+(recouvrement-sauvegarde), chacun avec ses lignes à retard fréquentielles des entrées :
+- tête : blocs B = 256, échantillons [0, 2M1) ; **latence 256 échantillons** (déclarée à l'hôte ;
   le sec est retardé d'autant) ;
-- queue : blocs M = 4096 (fs ≤ 50 kHz), 8192 (≤ 100 kHz) ou 16384, travail réparti sur les M/B
-  trames qui précèdent (pas de pointe de calcul).
-Coût (un cœur, `BENCH=1 ./build.sh`, stéréo, blocs de 256) : 48 kHz 1,0 % (3 s), 2,2 % (10 s),
-4,5 % (10 s, Cross) ; 96 kHz 3,0, 5,4 et 10,5 % ; 192 kHz 8,8, 14,8 et 24,8 %.
+- étage 1 : blocs M1 = 4096 (fs ≤ 50 kHz), 8192 (≤ 100 kHz) ou 16384, échantillons [2M1, 2M2)
+  (6 blocs) ;
+- étage 2 : blocs M2 = 4 M1, échantillons [2M2, N).
+Dans un étage, travail réparti sur les M/B trames qui précèdent (FFT des deux entrées à la
+première, produits ensuite, FFT inverses des sorties aux deux dernières : pas de pointe de calcul).
+Produits complexes par échantillon et par sortie à 30 s et 48 kHz : 124 (382 avec deux étages).
+Coût (un cœur, `BENCH=1 ./build.sh`, stéréo, blocs de 256 ; options du greffon, deux mesures,
+quelques % d'écart) : 48 kHz 0,9 % (3 s), 1,2 % (10 s), 2,2 % (10 s, Cross), 2,2 % (30 s), 3,9 %
+(30 s, Cross) ; 96 kHz 2,4, 3,1, 5,7, 5,5, 9,3 % ; 192 kHz 7,6, 9,1, 16, 13, 24 %.
 
 **Changement de réponse** (réglages de `isIRParam`, ou tempo de l'hôte si Rhythm) : réponse refaite
-dans un fil du greffon, prise au début d'un bloc de queue, fondu linéaire de M échantillons ;
-l'ancienne est libérée hors du fil audio. `activate()` construit la réponse sur-le-champ. Tempo :
+dans un fil du greffon, prise au début d'un bloc de l'étage 2 (trame A) ; chaque tâche (trame de
+tête, bloc d'étage) calcule la réponse entendue là où tombe sa sortie : à partir de A + R2 tous
+les étages ont la nouvelle, fondu linéaire de M1 échantillons sur [A + R2, A + R2 + R1), puis
+l'ancienne est libérée hors du fil audio. Changement entendu au plus 0,7 s après sa construction. `activate()` construit la réponse sur-le-champ. Tempo :
 `DISTRHO_PLUGIN_WANT_TIMEPOS`, sortie `kParamTempo` (montrée par l'interface), 120 BPM sans hôte.
 
 Chaîne : (L, R) → convolution → pré-retard (0-500 ms, fondu de 30 ms) → Low cut → High cut → Width
@@ -47,7 +56,9 @@ Chaîne : (L, R) → convolution → pré-retard (0-500 ms, fondu de 30 ms) → 
 ## Réglages
 SOURCE : Colour (-6..+6 dB/oct, -3 rose), Density (10-10 000 /s, max = lisse), Seed.
 TUNE : Tune (off, comb, chord), Note (C1-C7), Chord (9), Resonance (20 ms-5 s), LFO pitch
-(« Vibrato », demi-tons). ENVELOPE : Length, Swell, Decay, Damping (dB/oct au-dessus de 250 Hz),
+(« Vibrato », demi-tons). ENVELOPE : Length (0,1-30 s), Swell, Decay (part de la longueur prise
+par la descente jusqu'à -60 dB, 0-100 %, 75 % par défaut ; tenue à plein niveau entre le pic et
+le début de la descente ; en dB jusqu'à la 1.1 : une valeur de 1.1 est relue 0 %), Damping (dB/oct au-dessus de 250 Hz),
 Bloom (±100 %). MOTION : LFO rate, LFO tone, Rhythm (divisions, pointées, triolets), Attack, Duty, Release (faders), Pan
 rate, Pan depth, Cross. OUTPUT : Mix, Output, Low cut, High cut, Pre-delay, Width ; Bypass.
 Numéros des paramètres de 1.0 gardés (Noise → Colour), nouveaux à la suite (`PadifierParams.hpp`).
@@ -68,7 +79,10 @@ des peignes avec vibrato), **spectre du pad**, vu-mètres IN, PAD, OUT.
 Repris de Tinplate : boutons (glisser, Maj, molette, double-clic, clic droit pour saisir), bulles
 d'aide, préréglages de l'utilisateur (`<nom>.preset` dans `%APPDATA%\Padifier\presets\` ou
 `~/.config/padifier/presets/`, clés = symboles des paramètres, `version=2` ; fichier 1.0 relu,
-`noise` ignoré), A/B (état DPF `ab`), thèmes **Dusk** et **Pearl** (`padifier.conf`).
+`noise` ignoré), A/B (état DPF `ab`), thèmes **Dusk** et **Pearl** (`padifier.conf` ; Pearl
+opalescent en 1.2 : surfaces lilas laiteux, reflet lavande → pêche et lueur turquoise (`sheen`,
+champs `sheen0-2` du thème, transparents pour Dusk), carte et vu-mètres nacre → lilas → violet →
+pêche rosée (`map1-3`, valeurs de Dusk inchangées), accent vieux rose au lieu de l'ocre).
 Code : `plugin/PadifierUI.cpp`, `PadifierPrefs.hpp`, `PadifierUserPresets.hpp`.
 
 ## Compiler
@@ -79,29 +93,30 @@ Code : `plugin/PadifierUI.cpp`, `PadifierPrefs.hpp`, `PadifierUserPresets.hpp`.
    DPF `-O3 -ffast-math`), des préférences et des préréglages ;
 3. Windows → `bin/windows/`, Linux → `bin/linux/` ;
 4. installateur Windows (`installer/padifier.nsi`, `makensis`) →
-   `bin/Noise-Padifier-1.1.0-setup.exe` (VST3 imposé, CLAP et manuels PDF en option, cochés par
+   `bin/Noise-Padifier-1.2.0-setup.exe` (VST3 imposé, CLAP et manuels PDF en option, cochés par
    défaut ; les manuels vont dans `Program Files\Padifier\Noise-Padifier-manual.pdf` (anglais) et
    `Noise-Padifier-manuel.pdf` (français), avec deux raccourcis dans le menu Démarrer). Les PDF ne
    sont pas refaits par `build.sh` : recompiler `doc/manual.tex` et `doc/manuel.tex` avant si un
    manuel a changé.
 
 **Manuels** (anglais `doc/manual.pdf`, source `doc/manual.tex` ; français `doc/manuel.pdf`, source
-`doc/manuel.tex` ; 17 pages chacun en 1.1.0 : réglages, préréglages, conseils, algorithme avec
+`doc/manuel.tex` ; 18 pages chacun en 1.2.0 : réglages, préréglages, conseils, algorithme avec
 schémas et figures) (pdflatex ×3 dans `doc/`, sans
 avertissement), figures `doc/figures.py` (`fig_*.pdf` en français, `fig_*_en.pdf` en anglais ; réponses impulsionnelles du greffon lui-même via
 `tools/ir.cpp`, compilé dans `build/` par le script ; enveloppe, loi du mélange et filtres
 réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des traitements
 `fig_traitements`, mouvement stéréo `fig_stereo`). **README.md** en anglais pour GitHub.
 
-## Vérifications (1.1.0, 2026-11-26)
+## Vérifications (1.2.0, 2026-11-26 ; installateur : 1.1.0)
 - `tests/test_ir.cpp`, deux compilations, tout passe (mesures moyennées sur 8 tirages × 2 canaux) :
   défauts (énergie 1, mêmes bits deux fois, flux indépendants), couleur -6..+6 à 0,73 dB près par
   octave, densité (une impulsion par cellule), peigne et accord (pics 19-24 dB au-dessus des
   creux), vibrato à 0,4 Hz près, damping à 0,8 dB de la loi, bloom à 0,15 s, LFO de couleur
   24,0 dB pour 24, porte (zéro exact fermée), panoramique (±74 dB), Cross (énergie 1 par sortie).
 - `tests/test_dsp.cpp`, deux compilations, tout passe : convolution = convolution directe en double
-  retardée de 256 échantillons (≤ 4,4e-7 de la crête, 1 à 5M + 3 échantillons, 48-192 kHz, blocs de
-  l'hôte de 1 à 512) ; réponses croisées (≤ 3,5e-7) ; changement de réponse au moment prévu ;
+  retardée de 256 échantillons (≤ 4,4e-7 de la crête, 1 à 4 M2 + 7 échantillons (les trois étages),
+  48-192 kHz, blocs de l'hôte de 1 à 512) ; réponses croisées (≤ 3,5e-7) ; changement de réponse
+  au moment prévu (ancienne jusqu'à A + R2, fondu de M1, nouvelle après) ;
   greffon : latence 256, mix 0 et Bypass = entrée retardée au bit près, mix 100 % = convolution par
   les réponses (aussi avec Cross, accord, damping, mouvement), tempo de l'hôte 90 BPM → réponse
   refaite, pré-retard exact (480 échantillons pour 10 ms), changement de Length sans clic, filtres,
@@ -113,8 +128,9 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
 - Installateur (NSIS, 1.1.0) : installation et désinstallation silencieuses (`/S`) sous Wine dans un
   préfixe neuf : VST3 et CLAP identiques à `bin/windows/`, manuels identiques, licences, raccourcis
   du menu Démarrer, version 1.1.0 au registre, puis tout retiré.
-- Interface 1.1.0 affichée par la version autonome Windows sous Wine, deux thèmes (`doc/captures/` :
-  Chord pad en Dusk, Blooming en Pearl).
+- Interface 1.2.0 affichée par la version autonome Windows sous Wine, deux thèmes (`doc/captures/` :
+  Chord pad en Dusk, Blooming en Pearl avec la bulle de BLOOM). `./build.sh` complet sans
+  avertissement ; validateur 47/47 Linux et Windows (1.2.0) ; manuels sans avertissement LaTeX.
 - **Non vérifié** : écoute ; vrai logiciel audio ; clics et saisie dans un hôte ; installateur sur
   un vrai Windows.
 
@@ -141,8 +157,19 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   notes `build/release/notes-1.1.0.md` ; installateur testé sous Wine (préfixe neuf : fichiers
   identiques, version 1.1.0 au registre, tout retiré), validateur 47/47 Linux et Windows sur les
   binaires publiés.
-- Captures de la 1.1.0 : ajouter `-DPADIFIER_UI_DEMO_PRESET=<n>` ; chercher la fenêtre par sa taille
+- Captures (depuis la 1.1.0) : ajouter `-DPADIFIER_UI_DEMO_PRESET=<n>` ; chercher la fenêtre par sa taille
   (`grep 1200x760`), sinon `import` peut prendre l'écran entier ; atelier du validateur
   `build/vst3val`, préfixe Wine `build/wineprefix` (dans `build/`, non suivi).
+- **1.2.0 prête, non publiée** (session 70, 2026-11-26) : porte rythmique Attack/Release et listes
+  (commit `ca5ef86`), puis Decay en %, Length 30 s, convolution à trois étages, Pearl opalescent,
+  version 1.2.0 (getVersion, installateur, manuels, README), figures, captures et manuels refaits.
+  Reste : commit, puis release `v1.2.0` par la même procédure (installateur à essayer sous Wine dans
+  un préfixe neuf, binaires publiés au validateur) ; préréglages à réécouter (Decay converti à la
+  lecture des lois).
+- Captures : `tools/capture_ui.sh EXE OUT.png` (attend la fenêtre visible, ne garde que une image de
+  1200x760 : Wine crée d'abord une fenêtre temporaire de même nom, d'où des captures de l'écran
+  entier). Manuels : Dusk = `-DPADIFIER_UI_DEMO=-1 -DPADIFIER_UI_DEMO_THEME=0
+  -DPADIFIER_UI_DEMO_PRESET=8` ; Pearl = `-DPADIFIER_UI_DEMO=10 -DPADIFIER_UI_DEMO_THEME=1
+  -DPADIFIER_UI_DEMO_PRESET=11` (bulle de BLOOM).
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).

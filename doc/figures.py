@@ -32,8 +32,8 @@ TEXT = {
     "pink": ("bruit rose", "pink noise"),
     "white": ("bruit blanc", "white noise"),
     "time": ("temps (s)", "time (s)"),
-    "ir_title": ("Réponse impulsionnelle, canal gauche (Default : 3 s, Swell 25 %, Decay −30 dB)",
-                 "Impulse response, left channel (Default: 3 s, Swell 25 %, Decay −30 dB)"),
+    "ir_title": ("Réponse impulsionnelle, canal gauche (Default : 3 s, Swell 25 %, Decay 75 %)",
+                 "Impulse response, left channel (Default: 3 s, Swell 25 %, Decay 75 %)"),
     "time_length": ("temps (s), Length 3 s", "time (s), Length 3 s"),
     "env_level": ("niveau de l'enveloppe (dB)", "level of the envelope (dB)"),
     "measured": (" (mesuré, 1/6 d'octave)", " (measured, 1/6 octave)"),
@@ -44,15 +44,15 @@ TEXT = {
     "total": ("puissance totale (sources indépendantes)", "total power (independent sources)"),
     "gain": ("gain (dB)", "gain (dB)"),
     "input_notes": ("entrée : deux notes brèves (220 et 330 Hz)", "input: two short notes (220 and 330 Hz)"),
-    "output_pad": ("sortie, pad seul (Default : bruit rose, 3 s, Swell 25 %, Decay −30 dB)",
-                   "output, pad only (Default: pink noise, 3 s, Swell 25 %, Decay −30 dB)"),
+    "output_pad": ("sortie, pad seul (Default : bruit rose, 3 s, Swell 25 %, Decay 75 %)",
+                   "output, pad only (Default: pink noise, 3 s, Swell 25 %, Decay 75 %)"),
     "output_chord": ("sortie, pad seul (Chord pad : accord ré mineur 7, résonance 60 %)",
                      "output, pad only (Chord pad: D minor 7 chord, resonance 60 %)"),
     "colour": ("Colour %+d dB/oct", "Colour %+d dB/oct"),
     "t_damping": ("Damping 6 dB/oct, Bloom −60 %", "Damping 6 dB/oct, Bloom −60 %"),
     "t_chord": ("Chord ré min7, Resonance 60 %, Vibrato 0,5 demi-ton", "Chord D min7, Resonance 60 %, Vibrato 0.5 st"),
-    "t_rhythm": ("Rhythm 1/8 à 120 BPM, Attack 10 %, Duty 40 %, Release 30 %",
-                 "Rhythm 1/8 at 120 BPM, Attack 10 %, Duty 40 %, Release 30 %"),
+    "t_rhythm": ("Rhythm 1/8 à 120 BPM\nAttack 10 %, Duty 40 %, Release 30 %",
+                 "Rhythm 1/8 at 120 BPM\nAttack 10 %, Duty 40 %, Release 30 %"),
     "t_density": ("Density 40 impulsions/s", "Density 40 impulses/s"),
     "level_db": ("niveau (dB)", "level (dB)"),
     "left": ("sortie gauche", "left output"),
@@ -112,17 +112,18 @@ def stft_db(h, n=2048, hop=256):
     return t, f, 10 * np.log10(np.maximum(p, 1e-30)).T
 
 
-def envelope(t, length, swell, decay_db):
-    """NoiseIR.hpp, envelope()"""
+def envelope(t, length, swell, decay):
+    """NoiseIR.hpp, envelope(): rise to the peak, hold, fall to -60 dB over decay x length"""
     t = np.asarray(t, dtype=float)
     L, ta, tf = length, swell * length, min(0.02, 0.1 * length)
+    fall = max(L * (1.0 - decay), ta)
     e = np.ones_like(t)
     if ta > 0:
         rise = t < ta
         e[rise] *= np.sin(0.5 * np.pi * t[rise] / ta) ** 2
-    after = t >= ta
-    if L - ta > 0:
-        e[after] *= 10.0 ** (decay_db / 20.0 * (t[after] - ta) / (L - ta))
+    falling = t > fall
+    if L - fall > 0:
+        e[falling] *= 10.0 ** (-60.0 / 20.0 * (t[falling] - fall) / (L - fall))
     end = t > L - tf
     e[end] *= np.cos(0.5 * np.pi * (t[end] - (L - tf)) / tf) ** 2
     e[(t < 0) | (t >= L)] = 0.0
@@ -153,7 +154,7 @@ def fig_reponse():
     for ax, pink in zip(axes, (0, 1)):
         h = ir(colour=-3 if pink else 0)[:, 0]
         t = np.arange(len(h)) / FS
-        e = envelope(t, 3.0, 0.25, -30.0)
+        e = envelope(t, 3.0, 0.25, 0.75)
         k = np.sqrt(np.sum(h ** 2) / np.sum(e ** 2))
         ax.plot(t, h, color=VIOLET if pink else GREY, lw=0.3, rasterized=True)
         ax.plot(t, 3 * k * e, color=AMBER, lw=1.2, label=tr("envelope_band"))
@@ -172,14 +173,14 @@ def fig_enveloppes():
     fig, axes = plt.subplots(1, 2, figsize=(6.6, 2.6), sharey=True)
     cols = [GREY, VIOLET, AMBER, ROSE]
     for c, sw in zip(cols, (0, 25, 50, 100)):
-        axes[0].plot(t, db(envelope(t, 3.0, sw / 100, -30.0)), color=c, lw=1.4, label="Swell %d %%" % sw)
-    axes[0].set_title("Decay −30 dB", fontsize=9, loc="left")
-    for c, de in zip(cols, (0, -20, -40, -60)):
-        axes[1].plot(t, db(envelope(t, 3.0, 0.25, de)), color=c, lw=1.4, label="Decay %d dB" % de)
+        axes[0].plot(t, db(envelope(t, 3.0, sw / 100, 0.5)), color=c, lw=1.4, label="Swell %d %%" % sw)
+    axes[0].set_title("Decay 50 %", fontsize=9, loc="left")
+    for c, de in zip(cols, (0, 25, 50, 75)):
+        axes[1].plot(t, db(envelope(t, 3.0, 0.25, de / 100)), color=c, lw=1.4, label="Decay %d %%" % de)
     axes[1].set_title("Swell 25 %", fontsize=9, loc="left")
     for ax in axes:
         ax.set_xlabel(tr("time_length"))
-        ax.set_ylim(-62, 3)
+        ax.set_ylim(-64, 3)
         ax.legend(fontsize=7.5, loc="lower center")
     axes[0].set_ylabel(tr("env_level"))
     save(fig, "fig_enveloppes.pdf")
@@ -209,12 +210,13 @@ def fig_spectre():
 
 def fig_traitements():
     """time-frequency maps of responses with the treatments of the noise"""
-    cases = (("t_damping", dict(colour=0, length=4, swell=30, decay=-24, damping=6, bloom=-60)),
-             ("t_chord", dict(colour=0, length=4, swell=10, decay=-12, tune=2, note=50, chord=6, resonance=60,
+    cases = (("t_damping", dict(colour=0, length=4, swell=30, decay=70, damping=6, bloom=-60)),
+             ("t_chord", dict(colour=0, length=4, swell=10, decay=40, tune=2, note=50, chord=6, resonance=60,
                               lforate=0.5, lfopitch=0.5)),
-             ("t_rhythm", dict(colour=0, length=3, swell=5, decay=-24, rhythm=4, attack=10, duty=40, release=30)),
-             ("t_density", dict(colour=0, length=3, swell=5, decay=-24, density=40)))
-    fig, axes = plt.subplots(2, 2, figsize=(6.6, 5.0), sharey=True)
+             ("t_rhythm", dict(colour=0, length=3, swell=5, decay=80, rhythm=4, attack=10, duty=40, release=30)),
+             ("t_density", dict(colour=0, length=3, swell=5, decay=80, density=40)))
+    fig, axes = plt.subplots(2, 2, figsize=(6.6, 5.4), sharey=True)
+    fig.subplots_adjust(hspace=0.42, wspace=0.3)
     for ax, (key, settings) in zip(axes.flat, cases):
         h = ir(**settings)[:, 0]
         t, f, d = stft_db(h)
@@ -282,7 +284,7 @@ def fig_pad():
         nf = 1 << int(np.ceil(np.log2(n + len(h))))
         return np.fft.irfft(np.fft.rfft(x, nf) * np.fft.rfft(h, nf), nf)[:n]
     y = convolve(ir()[:, 0])
-    z = convolve(ir(length=6, swell=45, decay=-18, tune=2, note=50, chord=6, resonance=60, lforate=0.2,
+    z = convolve(ir(length=6, swell=45, decay=50, tune=2, note=50, chord=6, resonance=60, lforate=0.2,
                     lfopitch=0.15)[:, 0])
     fig, axes = plt.subplots(3, 1, figsize=(6.6, 6.2), sharex=True)
     for ax, sig, name in ((axes[0], x, tr("input_notes")),

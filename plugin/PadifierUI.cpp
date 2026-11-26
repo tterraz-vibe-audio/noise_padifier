@@ -51,7 +51,8 @@ static const float kArcSweep = 1.5f * kPi;
 
 // ------------------------------------------------------------------------------------------------
 // Themes: every colour of the interface.  Dusk (dark: lavender and pale amber on dark violet
-// grey) and Pearl (light: the same accents on pale pearl).  The choice is a preference of the
+// grey) and Pearl (light, opalescent: milky lilac surfaces with a lavender, peach and aqua sheen;
+// violet accents, coral "fire" instead of the amber).  The choice is a preference of the
 // user (PadifierPrefs.hpp), switched by the DUSK | PEARL pill of the header.
 
 struct Theme {
@@ -70,6 +71,11 @@ struct Theme {
     Color grid, gridZero, curveGlow, tone, meterEdge;
     // tooltip; label of the Bypass button when bypassed
     Color tipBg, tipEdge, bypassText;
+    // levels of the time-frequency map above the plot colour (-32, -16, 0 dB), also the meters
+    Color map1, map2, map3;
+    // sheen of the panels and header: diagonal sheen0 -> sheen1, glint sheen2 from the top left
+    // (all transparent: none)
+    Color sheen0, sheen1, sheen2;
 };
 
 static Color transparent(const Color& c)
@@ -97,27 +103,31 @@ static const Theme kThemes[PadifierPrefs::kThemeCount] = {
         Color(76, 70, 94, 0.6f), Color(120, 112, 140, 0.8f), Color(232, 196, 120, 0.22f), Color(178, 160, 238),
         Color(56, 52, 70),
         Color(10, 9, 14, 0.95f), Color(178, 160, 238, 0.6f), Color(232, 196, 120),
+        Color(72, 56, 128), Color(178, 160, 238), Color(232, 196, 120),
+        Color(0, 0, 0, 0.0f), Color(0, 0, 0, 0.0f), Color(0, 0, 0, 0.0f),
     },
     {   // Pearl
-        Color(222, 218, 226), Color(236, 233, 240), Color(98, 70, 170, 0.07f), Color(246, 244, 249),
-        Color(232, 228, 237), Color(98, 70, 170, 0.55f),
-        Color(249, 250, 251), Color(240, 243, 245), Color(200, 194, 210), Color(50, 40, 70, 0.16f),
-        Color(200, 194, 210, 0.8f),
-        Color(38, 32, 48), Color(105, 98, 120), Color(150, 144, 162), Color(250, 253, 255),
-        Color(98, 70, 170), Color(150, 105, 25), Color(60, 40, 115), Color(98, 70, 170, 0.75f),
-        Color(98, 70, 170, 0.22f),
-        Color(118, 92, 190), Color(78, 54, 145), Color(250, 251, 252), Color(236, 233, 240),
-        Color(98, 70, 170, 0.9f),
-        Color(140, 110, 220, 0.55f), Color(140, 110, 220, 0.0f), Color(120, 90, 210), Color(190, 198, 205),
-        Color(232, 236, 239), Color(250, 251, 252), Color(220, 215, 226), Color(98, 70, 170, 0.7f),
-        Color(118, 92, 190), Color(78, 54, 145),
-        Color(50, 40, 70, 0.30f), Color(253, 254, 255), Color(220, 215, 226), Color(248, 250, 251),
-        Color(228, 224, 233),
-        Color(100, 92, 120, 0.45f), Color(98, 70, 170, 0.12f), Color(98, 70, 170, 0.22f), Color(98, 70, 170, 0.18f),
-        Color(78, 54, 145),
-        Color(150, 144, 168, 0.35f), Color(120, 112, 138, 0.7f), Color(150, 105, 25, 0.15f), Color(98, 70, 170),
-        Color(196, 190, 206),
-        Color(253, 254, 255, 0.97f), Color(98, 70, 170, 0.6f), Color(255, 236, 200),
+        Color(222, 215, 234), Color(240, 235, 247), Color(240, 172, 146, 0.22f), Color(251, 249, 254),
+        Color(238, 232, 247), Color(124, 94, 204, 0.50f),
+        Color(253, 251, 255), Color(242, 237, 249), Color(208, 198, 228), Color(70, 50, 120, 0.14f),
+        Color(208, 198, 228, 0.8f),
+        Color(40, 32, 58), Color(106, 96, 130), Color(150, 141, 172), Color(255, 252, 255),
+        Color(112, 82, 198), Color(170, 84, 104), Color(72, 50, 138), Color(112, 82, 198, 0.75f),
+        Color(150, 120, 235, 0.28f),
+        Color(136, 108, 220), Color(94, 68, 176), Color(253, 251, 255), Color(238, 232, 247),
+        Color(112, 82, 198, 0.9f),
+        Color(160, 130, 245, 0.55f), Color(160, 130, 245, 0.0f), Color(132, 100, 232), Color(198, 190, 216),
+        Color(236, 231, 245), Color(249, 246, 253), Color(225, 218, 238), Color(112, 82, 198, 0.7f),
+        Color(136, 108, 220), Color(94, 68, 176),
+        Color(60, 40, 110, 0.26f), Color(255, 254, 255), Color(226, 219, 240), Color(252, 250, 255),
+        Color(234, 228, 244),
+        Color(108, 96, 142, 0.40f), Color(112, 82, 198, 0.12f), Color(112, 82, 198, 0.22f), Color(112, 82, 198, 0.18f),
+        Color(88, 62, 166),
+        Color(150, 138, 182, 0.35f), Color(120, 108, 152, 0.7f), Color(238, 152, 140, 0.16f), Color(112, 82, 198),
+        Color(206, 196, 226),
+        Color(254, 252, 255, 0.97f), Color(112, 82, 198, 0.6f), Color(255, 228, 214),
+        Color(206, 190, 246), Color(140, 108, 224), Color(238, 152, 140),
+        Color(176, 150, 250, 0.11f), Color(250, 182, 150, 0.11f), Color(140, 222, 214, 0.13f),
     },
 };
 
@@ -182,8 +192,8 @@ static const KnobDef kKnobs[kNumKnobs] = {
       "Rise of the envelope, in % of the length: the pad fades in and peaks at that time. 0: at "
       "once; 100 %: rises over the whole length (reverse swell).", false },
     { kParamDecay,     680.0f, 165.0f, 33.0f, "DECAY",
-      "Level of the envelope at the end, after the peak (a straight line in dB). 0 dB: flat, a "
-      "held pad; -60 dB: dies away like a reverb.", false },
+      "Part of the length taken by the fall to the minimum (-60 dB, then silence), a straight line in "
+      "dB; before it the pad is held at full level. 0 %: held to the end; 100 %: falls from the peak.", false },
     { kParamDamping,   530.0f, 305.0f, 24.0f, "DAMPING",
       "The highs die sooner: extra loss at the end, in dB per octave above 250 Hz, as in a reverb.", false },
     { kParamBloom,     630.0f, 305.0f, 24.0f, "BLOOM",
@@ -1213,7 +1223,7 @@ private:
         const char* fmt = "%.0f";
         if (p == kParamLength || p == kParamLfoRate || p == kParamPanRate || p == kParamLfoPitch)
             fmt = "%.2f";
-        else if (p == kParamDecay || p == kParamOutput || p == kParamColour || p == kParamDamping || p == kParamLfoTone)
+        else if (p == kParamOutput || p == kParamColour || p == kParamDamping || p == kParamLfoTone)
             fmt = "%.1f";
         std::snprintf(buf, size, fmt, v);
     }
@@ -1290,7 +1300,19 @@ private:
             secondsText(irSettings().swell * irSettings().length, f, sizeof(f));
             std::snprintf(buf, size, detail ? "%.0f %% (peak at %s)" : "%.0f %%", v, f);
             break;
-        case kParamDecay: std::snprintf(buf, size, detail ? "%.1f dB at the end" : "%.0f dB", v); break;
+        case kParamDecay:
+            if (detail)
+            {
+                const PadifierIR::Settings st = irSettings();
+                secondsText(PadifierIR::fallStart(st, st.swell * st.length), f, sizeof(f));
+                if (v <= 0.0f)
+                    std::snprintf(buf, size, "0 %% (held to the end)");
+                else
+                    std::snprintf(buf, size, "%.0f %% (falls to -60 dB from %s)", v, f);
+            }
+            else
+                std::snprintf(buf, size, "%.0f %%", v);
+            break;
         case kParamDamping:
             if (v <= 0.0f)
                 std::snprintf(buf, size, "off");
@@ -1465,9 +1487,27 @@ private:
         roundedRect(r.x, r.y, r.w, r.h, 8);
         fillPaint(linearGradient(r.x, r.y, r.x, r.y + r.h, fT->panel0, fT->panel1));
         fill();
+        sheen(r.x, r.y, r.w, r.h, 8);
+        beginPath();
+        roundedRect(r.x, r.y, r.w, r.h, 8);
         strokeWidth(1.0f);
         strokeColor(fT->panelEdge);
         stroke();
+    }
+
+    // opalescent sheen over a filled box (nothing when the theme has none)
+    void sheen(const float x, const float y, const float w, const float h, const float radius)
+    {
+        if (fT->sheen0.alpha <= 0.0f && fT->sheen1.alpha <= 0.0f && fT->sheen2.alpha <= 0.0f)
+            return;
+        beginPath();
+        roundedRect(x, y, w, h, radius);
+        fillPaint(linearGradient(x, y, x + w, y + h, fT->sheen0, fT->sheen1));
+        fill();
+        beginPath();
+        roundedRect(x, y, w, h, radius);
+        fillPaint(radialGradient(x + w * 0.2f, y, 0, std::fmax(w, h) * 0.7f, fT->sheen2, transparent(fT->sheen2)));
+        fill();
     }
 
     // numbered section title: "1  INPUT  what it does"
@@ -1598,6 +1638,7 @@ private:
         rect(0, 0, kW, 56);
         fillPaint(linearGradient(0, 0, 0, 56, fT->header0, fT->header1));
         fill();
+        sheen(0, 0, kW, 56, 0);
         beginPath();
         moveTo(0, 56.5f);
         lineTo(kW, 56.5f);
@@ -1734,11 +1775,15 @@ private:
         }
         else
             label(cx, 410, 20, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, a, 1);
+        char c[32];
         secondsText(st.length, a, sizeof(a));
-        if (st.damping > 0.0)
-            std::snprintf(b, sizeof(b), "end at %s, %.0f dB (%.0f dB at 8 kHz)", a, st.decayDb, PadifierIR::endDb(st, 8000.0));
+        secondsText(PadifierIR::fallStart(st, st.swell * st.length), c, sizeof(c));
+        if (st.decay <= 0.0)
+            std::snprintf(b, sizeof(b), "held to the end (%s)", a);
+        else if (st.damping > 0.0)
+            std::snprintf(b, sizeof(b), "falls from %s to -60 dB at %s (%.0f dB at 8 kHz)", c, a, PadifierIR::endDb(st, 8000.0));
         else
-            std::snprintf(b, sizeof(b), "end at %s, %.0f dB", a, st.decayDb);
+            std::snprintf(b, sizeof(b), "falls from %s to -60 dB at %s", c, a);
         label(cx, 432, 10, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.5f);
         std::snprintf(b, sizeof(b), "%d samples per path  |  latency %.1f ms", PadifierIR::lengthSamples(st),
                       1000.0 * PadifierConv::kHeadBlock / sampleRate());
@@ -2032,7 +2077,7 @@ private:
         {
             beginPath();
             roundedRect(kMeterX + 1.5f, y + 1.5f, (kMeterW - 3.0f) * f, kMeterH - 3.0f, 1.5f);
-            fillPaint(linearGradient(kMeterX, 0, kMeterX + kMeterW, 0, fT->deep, row == 1 ? fT->hot : fT->gold));
+            fillPaint(linearGradient(kMeterX, 0, kMeterX + kMeterW, 0, fT->map1, row == 1 ? fT->map2 : fT->map3));
             fill();
         }
         // 0 dBFS tick
@@ -2105,7 +2150,7 @@ private:
     // colour of a level of the map, 0 (-48 dB or less) .. 1 (0 dB)
     Color mapColour(const float u) const
     {
-        const Color* const c[4] = { &fT->plot, &fT->deep, &fT->hot, &fT->gold };
+        const Color* const c[4] = { &fT->plot, &fT->map1, &fT->map2, &fT->map3 };
         const float x = std::fmin(std::fmax(u, 0.0f), 1.0f) * 3.0f;
         const int i = std::min(2, static_cast<int>(x));
         return Color(*c[i], *c[i + 1], x - i);

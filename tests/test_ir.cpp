@@ -106,7 +106,7 @@ static void testColour()
     Settings s = base();
     s.length = 6.0;
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     double worst = 0.0;
     for (const double c : { -6.0, -3.0, 0.0, 3.0, 6.0 })
     {
@@ -131,13 +131,40 @@ static void testColour()
     check(worst < 1.0, what);
 }
 
+static void testEnvelope()
+{
+    std::printf("2b. Envelope: rise, hold, fall to the minimum\n");
+    Settings s = base();
+    s.length = 4.0;
+    s.swell = 0.25;   // peak at 1 s
+    s.decay = 0.5;    // fall from 2 s to 4 s
+    const double e1 = envelope(s, 0.5), e2 = envelope(s, 1.5), e3 = 20.0 * std::log10(envelope(s, 3.0)),
+                 e4 = 20.0 * std::log10(envelope(s, 3.97));
+    char what[200];
+    std::snprintf(what, sizeof(what), "swell 25 %%, decay 50 %%, 4 s: %.3f at 0.5 s (0.5), %.3f held at 1.5 s (1), %.1f dB at 3 s "
+                  "(-30), %.1f dB at 3.97 s (-59.1, the fade starts at 3.98 s)", e1, e2, e3, e4);
+    check(std::fabs(e1 - 0.5) < 1e-9 && e2 == 1.0 && std::fabs(e3 + 30.0) < 1e-9 && std::fabs(e4 + 59.1) < 1e-9, what);
+    s.decay = 0.9;   // longer than after the peak: falls from the peak
+    std::snprintf(what, sizeof(what), "decay 90 %% with the peak at 25 %%: falls from the peak (%.1f dB at 2.5 s, -30)",
+                  20.0 * std::log10(envelope(s, 2.5)));
+    check(std::fabs(20.0 * std::log10(envelope(s, 2.5)) + 30.0) < 1e-9, what);
+    s.decay = 0.0;
+    check(envelope(s, 3.9) == 1.0, "decay 0 %: held to the end (before the final fade)");
+    // with damping, the highs lose more: end level of 8 kHz
+    s.decay = 1.0;
+    s.damping = 6.0;
+    std::snprintf(what, sizeof(what), "damping 6 dB/oct: end level %.1f dB at 8 kHz (-90), %.1f dB at 200 Hz (-60)",
+                  endDb(s, 8000.0), endDb(s, 200.0));
+    check(std::fabs(endDb(s, 8000.0) + 90.0) < 1e-9 && endDb(s, 200.0) == -60.0, what);
+}
+
 static void testDensity()
 {
     std::printf("3. Density\n");
     Settings s = base();
     s.colour = 0.0;
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     s.density = 40.0;
     const Response r = generate(s);
     int nonzero = 0;
@@ -178,7 +205,7 @@ static void testTune()
     Settings s = base();
     s.colour = 0.0;
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     s.tune = 1;
     s.note = 57.0;   // 220 Hz
     s.resonance = 60.0;
@@ -253,7 +280,7 @@ static void testSpectral()
     s.colour = 0.0;
     s.length = 4.0;
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     s.damping = 6.0;
     std::vector<Response> r = draws(s);
     // law: at t, the level of f relative to t = 0 is -damping log2(f / 250) t / L (above 250 Hz)
@@ -274,7 +301,7 @@ static void testSpectral()
 
     s.damping = 0.0;
     s.swell = 0.5;
-    s.decayDb = -30.0;
+    s.decay = 1.0;
     s.bloom = 1.0;
     r = draws(s);
     // peak of each band: Ta(f) = 2 s + 2 s u(f)
@@ -292,7 +319,7 @@ static void testSpectral()
 
     s.bloom = 0.0;
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     s.lfoTone = 3.0;
     s.lfoRate = 0.5;
     r = draws(s);
@@ -366,7 +393,7 @@ static void testStereo()
     std::printf("7. Stereo motion, cross\n");
     Settings s = base();
     s.swell = 0.0;
-    s.decayDb = 0.0;
+    s.decay = 0.0;
     s.panDepth = 1.0;
     s.panRate = 1.0;   // left silent at 0.25 s, right silent at 0.75 s
     Response r = generate(s);
@@ -395,11 +422,11 @@ static void testStereo()
 
 static void cost()
 {
-    std::printf("8. Cost of a rebuild (all treatments, 10 s, chord of 4 notes, cross)\n");
+    std::printf("8. Cost of a rebuild (all treatments, 30 s, chord of 4 notes, cross)\n");
     for (const double fs : { 48000.0, 96000.0, 192000.0 })
     {
         Settings s = base(fs);
-        s.length = 10.0;
+        s.length = 30.0;
         s.tune = 2;
         s.chord = 5;
         s.resonance = 100.0;
@@ -426,6 +453,7 @@ int main(int argc, char** argv)
 {
     testDefaults();
     testColour();
+    testEnvelope();
     testDensity();
     testTune();
     testSpectral();

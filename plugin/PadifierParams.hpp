@@ -21,7 +21,7 @@ enum PadifierParam {
     kParamColour = 0,     // spectral slope of the noise, dB / octave (-3 pink, 0 white)
     kParamLength,         // length of the impulse response, s
     kParamSwell,          // rise time of the envelope, % of the length
-    kParamDecay,          // level of the envelope at the end, dB
+    kParamDecay,          // part of the length taken by the fall to the minimum, % (1.2: was dB)
     kParamSeed,           // realisation of the noise (integer)
     kParamLowCut,         // high-pass on the wet signal, Hz (minimum = off)
     kParamHighCut,        // low-pass on the wet signal, Hz (maximum = off)
@@ -63,9 +63,9 @@ struct PadifierRange { float min, max, def; };
 
 static const PadifierRange kPadifierRanges[kParamCount] = {
     {  -6.0f,     6.0f,    -3.0f },   // colour, dB / octave
-    {   0.1f,    10.0f,     3.0f },   // length, s
+    {   0.1f,    30.0f,     3.0f },   // length, s
     {   0.0f,   100.0f,    25.0f },   // swell, %
-    { -60.0f,     0.0f,   -30.0f },   // decay, dB at the end
+    {   0.0f,   100.0f,    75.0f },   // decay, % of the length (fall to -60 dB)
     {   1.0f,    99.0f,     1.0f },   // seed
     {  20.0f,  1000.0f,    20.0f },   // low cut, Hz (20 = off)
     { 1000.0f, 20000.0f, 20000.0f },  // high cut, Hz (20000 = off)
@@ -172,37 +172,37 @@ static const PadifierSetting kNone[] = { { kParamBypass, 0.0f } };
 
 static const PadifierPreset kPadifierPresets[] = {
     makePreset("Default", kNone),
-    makePreset("Soft pad", { { kParamLength, 4 }, { kParamSwell, 50 }, { kParamDecay, -24 },
+    makePreset("Soft pad", { { kParamLength, 4 }, { kParamSwell, 50 }, { kParamDecay, 50 },
         { kParamLowCut, 80 }, { kParamHighCut, 8000 }, { kParamWidth, 120 }, { kParamMix, 60 },
         { kParamDamping, 3 } }),
-    makePreset("Endless wash", { { kParamLength, 8 }, { kParamSwell, 40 }, { kParamDecay, -6 },
+    makePreset("Endless wash", { { kParamLength, 8 }, { kParamSwell, 40 }, { kParamDecay, 20 },
         { kParamSeed, 7 }, { kParamLowCut, 60 }, { kParamHighCut, 12000 }, { kParamWidth, 140 },
         { kParamMix, 70 }, { kParamCross, 40 } }),
     makePreset("Dark cloud", { { kParamColour, -4.5f }, { kParamLength, 6 }, { kParamSwell, 60 },
-        { kParamDecay, -18 }, { kParamSeed, 3 }, { kParamLowCut, 40 }, { kParamHighCut, 3000 },
+        { kParamDecay, 40 }, { kParamSeed, 3 }, { kParamLowCut, 40 }, { kParamHighCut, 3000 },
         { kParamMix, 60 }, { kParamDamping, 6 } }),
-    makePreset("Airy halo", { { kParamColour, 0 }, { kParamSwell, 30 }, { kParamDecay, -36 },
+    makePreset("Airy halo", { { kParamColour, 0 }, { kParamSwell, 30 }, { kParamDecay, 70 },
         { kParamSeed, 5 }, { kParamLowCut, 400 }, { kParamWidth, 150 }, { kParamMix, 35 },
         { kParamBloom, 50 } }),
     makePreset("Short smear", { { kParamColour, 0 }, { kParamLength, 0.4f }, { kParamSwell, 20 },
-        { kParamDecay, -40 }, { kParamSeed, 2 }, { kParamLowCut, 100 }, { kParamHighCut, 14000 },
+        { kParamDecay, 80 }, { kParamSeed, 2 }, { kParamLowCut, 100 }, { kParamHighCut, 14000 },
         { kParamMix, 30 } }),
     makePreset("Reverse swell", { { kParamLength, 2 }, { kParamSwell, 100 }, { kParamDecay, 0 },
         { kParamSeed, 4 }, { kParamLowCut, 60 }, { kParamHighCut, 16000 }, { kParamWidth, 120 } }),
-    makePreset("Tuned drone", { { kParamLength, 5 }, { kParamSwell, 40 }, { kParamDecay, -12 },
+    makePreset("Tuned drone", { { kParamLength, 5 }, { kParamSwell, 40 }, { kParamDecay, 30 },
         { kParamTune, 1 }, { kParamNote, 45 }, { kParamResonance, 70 }, { kParamLowCut, 40 },
         { kParamMix, 60 } }),
-    makePreset("Chord pad", { { kParamLength, 6 }, { kParamSwell, 45 }, { kParamDecay, -18 },
+    makePreset("Chord pad", { { kParamLength, 6 }, { kParamSwell, 45 }, { kParamDecay, 50 },
         { kParamTune, 2 }, { kParamNote, 50 }, { kParamChord, 6 }, { kParamResonance, 60 },
         { kParamLowCut, 80 }, { kParamWidth, 130 }, { kParamMix, 60 }, { kParamLfoRate, 0.2f },
         { kParamLfoPitch, 0.15f } }),
-    makePreset("Pulse gate", { { kParamLength, 4 }, { kParamSwell, 10 }, { kParamDecay, -30 },
+    makePreset("Pulse gate", { { kParamLength, 4 }, { kParamSwell, 10 }, { kParamDecay, 90 },
         { kParamRhythm, 4 }, { kParamDuty, 40 }, { kParamAttack, 10 }, { kParamRelease, 30 }, { kParamLowCut, 80 }, { kParamMix, 50 },
         { kParamPanDepth, 60 }, { kParamPanRate, 1 } }),
     makePreset("Grain cloud", { { kParamColour, -1.5f }, { kParamLength, 3 }, { kParamSwell, 30 },
-        { kParamDecay, -24 }, { kParamDensity, 40 }, { kParamWidth, 150 }, { kParamMix, 45 },
+        { kParamDecay, 70 }, { kParamDensity, 40 }, { kParamWidth, 150 }, { kParamMix, 45 },
         { kParamCross, 60 } }),
-    makePreset("Blooming", { { kParamLength, 5 }, { kParamSwell, 35 }, { kParamDecay, -30 },
+    makePreset("Blooming", { { kParamLength, 5 }, { kParamSwell, 35 }, { kParamDecay, 65 },
         { kParamBloom, -60 }, { kParamDamping, 4 }, { kParamLfoRate, 0.4f }, { kParamLfoTone, 2 },
         { kParamLowCut, 60 }, { kParamMix, 55 } }),
     makePreset("Send (100 % wet)", { { kParamLowCut, 60 }, { kParamMix, 100 } }),

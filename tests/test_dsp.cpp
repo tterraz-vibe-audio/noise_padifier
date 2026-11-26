@@ -142,7 +142,8 @@ static double convolutionError(const std::vector<float>& wet, const size_t N, F 
 {
     double err = 0.0;
     peak = 0.0;
-    for (size_t t = 0; t + kLatency < N; t += 3)
+    const size_t stride = N > 60000 ? 101 : 3;   // long cases: every 101st sample (direct convolution is slow)
+    for (size_t t = 0; t + kLatency < N; t += stride)
     {
         const double y = expected(t);
         peak = std::max(peak, std::fabs(y));
@@ -157,14 +158,15 @@ static void testConvolver()
     const double rates[] = { 48000.0, 96000.0, 192000.0 };
     for (const double fs : rates)
     {
-        const int M = PadifierConv::tailBlock(fs), B = PadifierConv::kHeadBlock;
-        const int lengths[] = { 1, 100, B, B + 1, 2 * M - 1, 2 * M, 2 * M + 1, 3 * M + 17, 5 * M + 3 };
+        const int M = PadifierConv::tailBlock(fs), B = PadifierConv::kHeadBlock, M2 = PadifierConv::kStageRatio * M;
+        const int lengths[] = { 1, 100, B, B + 1, 2 * M - 1, 2 * M, 2 * M + 1, 3 * M + 17, 2 * M2 - 1, 2 * M2, 2 * M2 + 1,
+                                4 * M2 + 7 };
         double worst = 0.0;
         bool dryExact = true;
         for (const int L : lengths)
         {
             std::vector<float> h[2] = { randomSignal(L, 11 + L), randomSignal(L, 23 + L) };
-            const size_t N = static_cast<size_t>(L) + 3 * M + 1000;
+            const size_t N = static_cast<size_t>(L) + 3 * M2 + 1000;
             std::vector<float> x[2] = { randomSignal(N, 5), randomSignal(N, 6) };
             const EngineRun r = runEngine(fs, h, x);
             for (int c = 0; c < 2; ++c)
@@ -177,8 +179,8 @@ static void testConvolver()
             }
         }
         char what[160];
-        std::snprintf(what, sizeof(what), "%.0f kHz (M = %d), 9 lengths 1 .. 5M + 3: largest error %.2e of the peak (< 1e-5)",
-                      fs / 1000.0, M, worst);
+        std::snprintf(what, sizeof(what), "%.0f kHz (M1 = %d, M2 = %d), 12 lengths 1 .. 4 M2 + 7: largest error %.2e of the peak (< 1e-5)",
+                      fs / 1000.0, M, M2, worst);
         check(worst < 1e-5, what);
         std::snprintf(what, sizeof(what), "%.0f kHz: dry = input delayed by %d samples, exactly", fs / 1000.0, kLatency);
         check(dryExact, what);
@@ -212,20 +214,22 @@ static void testChange()
 {
     std::printf("2. Change of response\n");
     const double fs = 48000.0;
-    const int M = PadifierConv::tailBlock(fs), B = PadifierConv::kHeadBlock, R = M / B;
-    const int L1 = 4 * M + 100, L2 = 2 * M + 500;
+    const int M = PadifierConv::tailBlock(fs), B = PadifierConv::kHeadBlock, R2 = PadifierConv::kStageRatio * M / B;
+    const int M2 = PadifierConv::kStageRatio * M;
+    const int L1 = 3 * M2 + 100, L2 = 2 * M2 + 500;   // both use the three stages
     std::vector<float> h1[2] = { randomSignal(L1, 1), randomSignal(L1, 2) };
     std::vector<float> h2[2] = { randomSignal(L2, 3), randomSignal(L2, 4) };
-    const size_t N = 12 * static_cast<size_t>(M);
+    const size_t N = 10 * static_cast<size_t>(M2);
     std::vector<float> x[2] = { randomSignal(N, 7), randomSignal(N, 8) };
     const size_t offerAt = 3 * static_cast<size_t>(M) + 1234;
     const EngineRun r = runEngine(fs, h1, x, h2, offerAt);
 
-    // frame A: the first frame k with k = 0 mod R whose call comes after the offer ((k+1)B > offerAt)
+    // frame A: the first frame k with k = 0 mod R2 whose call comes after the offer ((k+1)B > offerAt);
+    // the crossfade runs over [A + R2, A + R2 + R1) frames, i.e. M1 samples
     size_t A = 0;
-    while (!((A + 1) * B > offerAt && A % R == 0))
+    while (!((A + 1) * B > offerAt && A % R2 == 0))
         ++A;
-    const size_t t0 = (A + R) * B, t1 = (A + 2 * R) * B;
+    const size_t t0 = (A + R2) * B, t1 = t0 + M;
     double worst[3] = { 0, 0, 0 };
     for (int c = 0; c < 2; ++c)
     {
@@ -515,7 +519,7 @@ static void benchmark()
     std::printf("4. Cost (one core, per second of stereo audio, blocks of 256)\n");
     const double rates[] = { 48000.0, 96000.0, 192000.0 };
     for (const double fs : rates)
-        for (const float length : { 3.0f, 10.0f, -10.0f })   // -10: 10 s with Cross
+        for (const float length : { 3.0f, 10.0f, -10.0f, 30.0f, -30.0f })   // negative: with Cross
         {
             float v[kPresetParamCount];
             neutral(v);

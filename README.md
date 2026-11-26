@@ -1,7 +1,7 @@
 # Noise Padifier
 
 A convolution pad effect for VST3, CLAP and LV2: the input is convolved with **shaped noise**
-(0.1 to 10 s), so that every note and every attack is smeared into a pad. The timbre of the source
+(0.1 to 30 s), so that every note and every attack is smeared into a pad. The timbre of the source
 stays (its harmonics keep their place), its shape in time is replaced by the response, and the
 noise can be coloured, tuned, shaped in time and frequency, made rhythmic and moved in stereo.
 
@@ -14,24 +14,26 @@ noise can be coloured, tuned, shaped in time and frequency, made rhythmic and mo
   seed always gives the same response, on every computer).
 - **Tune**: a comb filter on a **note**, or one comb per note of a **chord** (major, minor, sus,
   sevenths, octaves...), with **resonance** and **vibrato**: the pad takes the note or the chord.
-- **Envelope**: **Length**, **Swell** (rise; 100 % gives a reverse swell), **Decay** (level at the
-  end; 0 dB gives a held pad), **Damping** (the highs die sooner) and **Bloom** (the peak moves with
+- **Envelope**: **Length**, **Swell** (rise; 100 % gives a reverse swell), **Decay** (part of the length
+  taken by the fall to -60 dB; 0 % gives a held pad), **Damping** (the highs die sooner) and **Bloom** (the peak moves with
   frequency: the pad opens up or warms up).
 - **Motion along the response**: an **LFO** on the pitch of the combs and on the colour, a
-  **rhythm** gate on the tempo of the host (1/1 to 1/32, dotted, triplets) with **duty**, a stereo
+  **rhythm** gate on the tempo of the host (1/1 to 1/32, dotted, triplets) with **attack**,
+  **duty** and **release**, a stereo
   **pan** motion, and **Cross**: true stereo, each input also reaching the other side.
 - All these treatments are computed once, when the response is built (in a worker thread; the new
   response is crossfaded in without a click), and **cost nothing during playback**.
-- **Low-latency, low-CPU convolution**: two-stage uniformly partitioned FFT convolution (pffft),
-  work spread evenly over the blocks, no allocation in the audio thread; 256 samples of latency,
-  reported to the host. About 2.2 % of one core at 48 kHz with a 10 s response (4.5 % with Cross).
+- **Low-latency, low-CPU convolution**: partitioned FFT convolution in three stages of growing
+  blocks (pffft), work spread evenly over the blocks, no allocation in the audio thread; 256
+  samples of latency, reported to the host. About 2.2 % of one core at 48 kHz with a 30 s response
+  (3.9 % with Cross).
 - **Pre-delay**, **Low cut** and **High cut** on the pad (12 dB/octave), **Width**, **Mix** at
   constant power, **Output**; unit-energy responses: a broadband input keeps its level in the pad.
 - **Interface**: five sections in the order of the signal, a **time-frequency map** of the
   response (envelope, damping, bloom, gate, notes of the combs with their vibrato), the spectrum of
   the pad and meters; knobs without effect are drawn faint.
 - **Presets**: 13 factory presets and your own (save, replace, delete), shared by all projects.
-- **A/B comparison** saved with the project; dark (Dusk) and light (Pearl) themes; tooltips
+- **A/B comparison** saved with the project; dark (Dusk) and light, opalescent (Pearl) themes; tooltips
   everywhere; keyboard entry of values (right-click a knob); resizable HiDPI interface.
 - Bypass declared to the host (delayed dry signal: constant latency), smoothed controls, no
   denormal slowdown.
@@ -47,7 +49,7 @@ noise can be coloured, tuned, shaped in time and frequency, made rhythmic and mo
 
 ## Installation
 
-**Windows**: run `Noise-Padifier-1.1.0-setup.exe` (VST3, optional CLAP and user manuals).
+**Windows**: run `Noise-Padifier-1.2.0-setup.exe` (VST3, optional CLAP and user manuals).
 Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common Files\VST3\` and
 `noise_padifier.clap` to `C:\Program Files\Common Files\CLAP\`.
 

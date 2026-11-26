@@ -33,7 +33,7 @@
 
 \title{\textsf{NOISE} \textcolor{violet}{\textbf{PADIFIER}}\\[4pt]
 \large User manual and description of the algorithm}
-\author{Version 1.1.0}
+\author{Version 1.2.0}
 \date{}
 
 \begin{document}
@@ -51,7 +51,7 @@
 \section{Overview}
 
 Noise Padifier turns any sound into a pad. The signal is convolved with an impulse response made
-of \textbf{noise} under an adjustable \textbf{envelope}, 0.1 to 10\,s long: every note, every
+of \textbf{noise} under an adjustable \textbf{envelope}, 0.1 to 30\,s long: every note, every
 attack, is smeared over the whole length of that response. Since noise contains every frequency,
 the timbre of the source is kept (its harmonics stay where they are) but its shape in time is
 gone: a short note becomes a sustained sound that rises and dies away along the envelope
@@ -86,7 +86,7 @@ BSD-like).
 % ==============================================================================================
 \section{Installation}
 
-\paragraph{Windows.} Run the installer \texttt{Noise-Padifier-1.1.0-setup.exe}. It installs the
+\paragraph{Windows.} Run the installer \texttt{Noise-Padifier-1.2.0-setup.exe}. It installs the
 VST3 (required) and, if ticked, the CLAP and the user manuals (English and French), then adds an
 uninstaller (``Apps and features''). By hand, copy:
 \begin{itemize}
@@ -158,8 +158,8 @@ the combs.
 
 \subsection{Section 3: ENVELOPE}
 \ctl{LENGTH}, \ctl{SWELL}, \ctl{DECAY}, \ctl{DAMPING} and \ctl{BLOOM}. Below: the time of the peak of
-the envelope (at 125\,Hz and 8\,kHz when Bloom is on), the end of the response and its level (and
-at 8\,kHz with Damping), the number of samples per path and the latency.
+the envelope (at 125\,Hz and 8\,kHz when Bloom is on), the start of the fall and the end of the
+response (and the end level at 8\,kHz with Damping), the number of samples per path and the latency.
 
 \subsection{Section 4: MOTION}
 Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm (the \ctl{RHYTHM} list
@@ -220,9 +220,9 @@ Chord & 9 chords & major & kind of chord \\
 Resonance & 0--100\,\% & 50\,\% & ring time of the combs (20\,ms to 5\,s) \\
 Vibrato & 0--12 semitones & 0 & depth of the LFO on the note \\
 \multicolumn{4}{@{}l}{\textsf{3 ENVELOPE}} \\
-Length & 0.1--10\,s & 3\,s & length of the response \\
+Length & 0.1--30\,s & 3\,s & length of the response \\
 Swell & 0--100\,\% & 25\,\% & rise of the envelope, as a part of the length \\
-Decay & $-60$--0\dB & $-30$\dB & level of the envelope at the end \\
+Decay & 0--100\,\% & 75\,\% & part of the length taken by the fall \\
 Damping & 0--12\dB/oct & 0 & loss of the highs at the end \\
 Bloom & $-100$--+100\,\% & 0 & shift of the peak with frequency \\
 \multicolumn{4}{@{}l}{\textsf{4 MOTION}} \\
@@ -293,13 +293,18 @@ thicken the sound (smear); several seconds make a pad. Logarithmic knob.
 starts with the sound; at 25\,\% of a 3\,s response, it rises for 0.75\,s; at 100\,\%, it rises over
 the whole response and then stops short (a ``reverse reverb'' effect).
 
-\paragraph{Decay.} Level of the envelope at the end of the response, after the peak, along a
-straight line in decibels: at $-60$\dB, the pad dies away like a reverb; at 0\dB, it stays at the
-same level to the end (a held pad, cut by a fade of 20\,ms at most). Figure~\ref{fig:envelopes}.
+\paragraph{Decay.} Part of the length taken by the final fall, which always ends at the minimum:
+$-60$\dB, then silence (a fade of 20\,ms at most). The fall is a straight line in decibels over the
+last Decay\,\% of the response; between the peak and the start of the fall, the pad is held at full
+level. For example, Swell 25\,\% and Decay 50\,\%: rise from 0 to 25\,\%, held from 25 to 50\,\%,
+fall from 50 to 100\,\%. If the fall asked for is longer than what is left after the peak, it starts
+from the peak. Decay 0\,\%: held to the end (a held pad, or a rise cut short with Swell 100\,\%);
+a high Decay: the pad dies away from the peak on, like a reverb. Figure~\ref{fig:envelopes}.
 
 \paragraph{Damping.} The highs die sooner than the lows, as in a room: at the end of the response,
-each octave above 250\,Hz loses Damping decibels more than Decay (with 6\dB/oct and Decay
-$-30$\dB, 8\,kHz ends at $-60$\dB). The pad gets darker as it dies away.
+each octave above 250\,Hz has lost Damping decibels more, the loss growing steadily from the peak
+(with 6\dB/oct, 8\,kHz ends at $-90$\dB{} instead of $-60$). The pad gets darker as it dies away,
+and even while it is held.
 
 \paragraph{Bloom.} The peak of the envelope moves with frequency, by at most half the length over
 four octaves on either side of 1\,kHz: positive, the highs arrive later (the pad opens up);
@@ -310,8 +315,8 @@ negative, the lows arrive later (it warms up).
 \paragraph{Motion along the response.} The LFO, the rhythm and the stereo motion are written into
 the response: they start at the attack of each sound, not on the time of the song. On spaced
 notes, each one makes the same motion; on dense playing, the motions of the successive notes
-overlap with an offset and soften. A response lasts 10\,s at most: a slow LFO only makes one or two
-cycles per note.
+overlap with an offset and soften. A response lasts 30\,s at most: a slow LFO only makes a few cycles
+per note.
 
 \paragraph{LFO rate, LFO tone.} Rate of the LFO (a sine starting from 0 at the attack), shared by
 the vibrato of the combs and the colour; LFO TONE swings the slope of the spectrum by $\pm$ its
@@ -366,8 +371,8 @@ What Cross does not change:
 mono (a pad placed on the left ends up in the centre, but narrow). Cross spreads the pad to both
 sides while keeping it wide. The two can be combined.
 
-\emph{Cost}: four convolutions instead of two, about twice the computation (4.5\,\% of one core
-instead of 2.2\,\% at 48\,kHz for a 10\,s response) and the memory, and a slightly longer rebuild;
+\emph{Cost}: four convolutions instead of two, about twice the computation (2.2\,\% of one core
+instead of 1.2\,\% at 48\,kHz for a 10\,s response) and the memory, and a slightly longer rebuild;
 only when Cross is above 0. The stereo motion (Pan) is applied afterwards, output by output.
 
 \emph{When to use it}: on an auxiliary send that receives sources placed left or right, when a pad
@@ -402,18 +407,18 @@ crossfades from the old delay to the new one in 30\,ms.
 \toprule
 Name & Settings (the others at their defaults) \\
 \midrule
-Default & pink noise, 3\,s, Swell 25\,\%, Decay $-30$\dB, Mix 50\,\% \\
-Soft pad & 4\,s, Swell 50\,\%, Decay $-24$, Damping 3, Low cut 80\,Hz, High cut 8\,kHz, Width 120\,\%, Mix 60\,\% \\
-Endless wash & 8\,s, Swell 40\,\%, Decay $-6$, Cross 40\,\%, Width 140\,\%, Mix 70\,\% \\
-Dark cloud & Colour $-4.5$, 6\,s, Swell 60\,\%, Decay $-18$, Damping 6, High cut 3\,kHz, Mix 60\,\% \\
-Airy halo & white noise, Swell 30\,\%, Decay $-36$, Bloom +50\,\%, Low cut 400\,Hz, Width 150\,\%, Mix 35\,\% \\
-Short smear & white noise, 0.4\,s, Swell 20\,\%, Decay $-40$, Low cut 100\,Hz, Mix 30\,\% \\
-Reverse swell & 2\,s, Swell 100\,\%, Decay 0, Width 120\,\% \\
-Tuned drone & COMB on A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay $-12$, Mix 60\,\% \\
-Chord pad & CHORD min7 on D3, Resonance 60\,\%, Vibrato 0.15, LFO 0.2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\% \\
-Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\% \\
-Grain cloud & Colour $-1.5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\% \\
-Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 at 0.4\,Hz, Mix 55\,\% \\
+Default & pink noise, 3\,s, Swell 25\,\%, Decay 75\,\%, Mix 50\,\% \\
+Soft pad & 4\,s, Swell 50\,\%, Decay 50\,\%, Damping 3, Low cut 80\,Hz, High cut 8\,kHz, Width 120\,\%, Mix 60\,\% \\
+Endless wash & 8\,s, Swell 40\,\%, Decay 20\,\%, Cross 40\,\%, Width 140\,\%, Mix 70\,\% \\
+Dark cloud & Colour $-4.5$, 6\,s, Swell 60\,\%, Decay 40\,\%, Damping 6, High cut 3\,kHz, Mix 60\,\% \\
+Airy halo & white noise, Swell 30\,\%, Decay 70\,\%, Bloom +50\,\%, Low cut 400\,Hz, Width 150\,\%, Mix 35\,\% \\
+Short smear & white noise, 0.4\,s, Swell 20\,\%, Decay 80\,\%, Low cut 100\,Hz, Mix 30\,\% \\
+Reverse swell & 2\,s, Swell 100\,\%, Decay 0\,\%, Width 120\,\% \\
+Tuned drone & COMB on A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay 30\,\%, Mix 60\,\% \\
+Chord pad & CHORD min7 on D3, Resonance 60\,\%, Vibrato 0.15, LFO 0.2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\%, Decay 50\,\% \\
+Pulse gate & Rhythm 1/8, Attack 10\,\%, Duty 40\,\%, Release 30\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\%, Decay 90\,\% \\
+Grain cloud & Colour $-1.5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\%, Decay 70\,\% \\
+Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 at 0.4\,Hz, Mix 55\,\%, Decay 65\,\% \\
 Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
 \bottomrule
 \end{tabularx}
@@ -504,13 +509,15 @@ number of the path). Each goes through the following steps.
   \cdot \sin(2\pi\, \text{LFO rate}\; t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ with $T_{60}$ the ring
   time; the outputs of the combs are summed. The combs run on a noise started $\min(T_{60},
   5\,\text{s})$ before $t = 0$, so that they ring steadily from the start.
-\item \textbf{Envelope.} Without Damping, Bloom or LFO tone, the envelope $e(t)$ is applied in time
-  (rise $\sin^2$ up to $T_a$ = Swell $\cdot$ Length, then a straight line in dB down to Decay).
+\item \textbf{Envelope.} Without Damping, Bloom or LFO tone, the envelope $e(t)$ is applied in time:
+  rise $\sin^2$ up to $T_a$ = Swell $\cdot$ Length, held at 1 until the start of the fall
+  $T_f = \max(L\,(1 - \text{Decay}), T_a)$, then a straight line in dB down to $-60$\dB{} at $L$.
   Otherwise it depends on frequency and is applied by a short-time Fourier transform (square-root
   Hann windows of 2048 samples at 48\,kHz, overlap of 3/4): for each frame and each frequency, the
   gain of the envelope with a peak at $T_a(f) = T_a + \text{Bloom} \cdot \frac{L}{2} \cdot u(f)$,
-  $u(f) = \log_2(f / 1\,\text{kHz})/4$ bounded to $[-1, 1]$, an end level $\text{Decay} -
-  \text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$, and the colour factor of the LFO
+  $u(f) = \log_2(f / 1\,\text{kHz})/4$ bounded to $[-1, 1]$, the fall from $\max(L\,(1 -
+  \text{Decay}), T_a(f))$, an extra loss growing from the peak to $\text{Damping} \cdot \max(0,
+  \log_2(f / 250\,\text{Hz}))$\dB{} at $L$, and the colour factor of the LFO
   $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6.02}$. Then, in
   both cases, the $\cos^2$ fade over the last $\min(20\,\text{ms}, L/10)$.
 \item \textbf{Rhythm.} Gate of period $T$ = (length of the division) $\times\, 60$ / tempo; each
@@ -530,8 +537,8 @@ whatever the settings. An isolated note, on the other hand, is smeared: its peak
 more as the response is long, its energy is kept.
 
 The streams are computed in parallel, in threads of the plugin. A rebuild takes 0.02\,s with the
-default settings; in the worst case (10\,s, a chord of four notes, every treatment, Cross),
-0.26\,s at 48\,kHz and 1.05\,s at 192\,kHz. Each treatment is checked by the tests on the
+default settings; in the worst case (30\,s, a chord of four notes, every treatment, Cross),
+0.66\,s at 48\,kHz and 2.7\,s at 192\,kHz, with up to 620\,MB of transient memory at 192\,kHz. Each treatment is checked by the tests on the
 responses made, against its law (colour within 0.7\dB{} per octave, damping within 0.8\dB, bloom
 within 0.15\,s, vibrato within 0.4\,Hz\ldots).
 
@@ -577,45 +584,55 @@ gate, sparse noise (isolated impulses).}
 
 \subsection{The convolution}\label{sec:convolution}
 
-A 10\,s response at 48\,kHz holds 480\,000 samples: direct convolution would cost nearly a billion
+A 30\,s response at 48\,kHz holds 1\,440\,000 samples: direct convolution would cost billions of
 multiplications per second and per channel. The plugin computes it in the frequency domain, by
-blocks (\emph{uniformly partitioned convolution}, overlap-save, real FFTs of pffft), in two stages:
+blocks (\emph{partitioned convolution}, overlap-save, real FFTs of pffft), in three stages of
+larger and larger blocks:
 
 \begin{center}
-\begin{tikzpicture}[x=0.55mm, y=1mm]
-\fill[violet!25] (0,0) rectangle (32,6);
-\foreach \i in {0,4,...,28} \draw[violet] (\i,0) rectangle (\i+4,6);
-\fill[amber!25] (32,0) rectangle (240,6);
-\foreach \i in {32,48,...,224} \draw[amber] (\i,0) rectangle (\i+16,6);
-\draw[ink] (0,0) rectangle (240,6);
-\node[font=\scriptsize, above] at (16,6) {head};
-\node[font=\scriptsize, above] at (136,6) {tail};
+\begin{tikzpicture}[x=0.5mm, y=1mm]
+\fill[violet!25] (0,0) rectangle (16,6);
+\foreach \i in {0,4,8,12} \draw[violet] (\i,0) rectangle (\i+4,6);
+\fill[amber!20] (16,0) rectangle (64,6);
+\foreach \i in {16,24,...,56} \draw[amber] (\i,0) rectangle (\i+8,6);
+\fill[amber!40] (64,0) rectangle (288,6);
+\foreach \i in {64,96,...,256} \draw[amber!80!black] (\i,0) rectangle (\i+32,6);
+\draw[ink] (0,0) rectangle (288,6);
+\node[font=\scriptsize, above] at (8,6) {head};
+\node[font=\scriptsize, above] at (40,6) {stage 1};
+\node[font=\scriptsize, above] at (176,6) {stage 2};
 \node[font=\scriptsize, below] at (0,0) {0};
-\node[font=\scriptsize, below] at (32,0) {$2M$};
-\node[font=\scriptsize, below] at (240,0) {$N$};
-\draw[<->] (0,-6) -- node[below, font=\scriptsize] {blocks of $B = 256$} (32,-6);
-\draw[<->] (32,-6) -- node[below, font=\scriptsize] {blocks of $M$ = 4096 to 16\,384} (240,-6);
+\node[font=\scriptsize, below] at (16,0) {$2M_1$};
+\node[font=\scriptsize, below] at (64,0) {$2M_2$};
+\node[font=\scriptsize, below] at (288,0) {$N$};
+\draw[<->] (64,-7) -- node[below, font=\scriptsize] {blocks of $M_2 = 4 M_1$} (288,-7);
 \end{tikzpicture}
 \end{center}
 
 \begin{itemize}
-\item \textbf{Head}: the first $2M$ samples of the response, in blocks of $B = 256$. For each block
-  of 256 input samples: one 512-point FFT, one product per block of the response, one inverse FFT.
-  This stage sets the latency: 256 samples.
-\item \textbf{Tail}: the rest, in blocks of $M$ = 4096 samples ($f_s \leq 50$\,kHz), 8192
-  ($\leq 100$\,kHz) or 16\,384. Block $j$ of the input only acts on the output from sample
-  $jM + 2M$ on: the plugin thus has $M$ samples of time to compute its contribution (one FFT, the
-  products with all the blocks of the tail, one inverse FFT) and spreads it evenly over the $M/B$
-  blocks of 256 before. There is neither a peak of computation nor an extra thread in the audio
-  processing.
+\item \textbf{Head}: the first $2M_1$ samples of the response, in blocks of $B = 256$. For each
+  block of 256 input samples: one 512-point FFT, one product per block of the response, one inverse
+  FFT. This stage sets the latency: 256 samples.
+\item \textbf{Stage 1}: the samples from $2M_1$ to $2M_2$, in six blocks of $M_1$ = 4096 samples
+  ($f_s \leq 50$\,kHz), 8192 ($\leq 100$\,kHz) or 16\,384.
+\item \textbf{Stage 2}: the rest, in blocks of $M_2 = 4 M_1$.
 \end{itemize}
-Both stages share the spectra of the input already computed (frequency-domain delay lines); with
-Cross, each output adds the products of the crossed responses with the spectra of the other input,
-which doubles the products without any further transform. The
-result is that of the exact convolution, up to the rounding of single-precision computation: the
-tests compare it with a direct convolution in double precision, with a deviation of at most
-$4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample to $5M$ and at 48, 96 and 192\,kHz,
-and of $3.5 \cdot 10^{-7}$ with the crossed responses.
+In a stage of blocks of $M$, block $j$ of the input only acts on the output from sample $jM + 2M$
+on: the plugin thus has $M$ samples of time to compute its contribution and spreads it evenly over
+the $M/B$ blocks of 256 before (the FFTs of both inputs on the first, the products next, the inverse
+FFTs of both outputs on the last two). There is neither a peak of computation nor an extra thread
+in the audio processing. The cost per sample of a stage is proportional to the number of its
+blocks divided by their size: the large blocks of the last stage make long responses cheap (at
+30\,s and 48\,kHz, 124 complex products per sample and per output instead of 382 with a single tail
+stage).
+
+Each stage has its own spectra of the input (frequency-domain delay lines); with Cross, each output
+adds the products of the crossed responses with the spectra of the other input, which doubles the
+products without any further transform. The result is that of the exact convolution, up to the
+rounding of single-precision computation: the tests compare it with a direct convolution in double
+precision, with a deviation of at most $4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample
+to $4M_2$ (all three stages) and at 48, 96 and 192\,kHz, and of $3.5 \cdot 10^{-7}$ with the
+crossed responses.
 
 \paragraph{Cost.} Measured on one core (blocks of 256, stereo):
 \begin{center}
@@ -624,15 +641,18 @@ and of $3.5 \cdot 10^{-7}$ with the crossed responses.
 \toprule
 Length & 48\,kHz & 96\,kHz & 192\,kHz \\
 \midrule
-3\,s  & 1.0\,\% & 3.0\,\% & 8.8\,\% \\
-10\,s & 2.2\,\% & 5.4\,\% & 15\,\% \\
-10\,s, Cross & 4.5\,\% & 10\,\% & 25\,\% \\
+3\,s  & 0.9\,\% & 2.4\,\% & 7.6\,\% \\
+10\,s & 1.2\,\% & 3.1\,\% & 9.1\,\% \\
+10\,s, Cross & 2.2\,\% & 5.7\,\% & 16\,\% \\
+30\,s & 2.2\,\% & 5.5\,\% & 13\,\% \\
+30\,s, Cross & 3.9\,\% & 9.3\,\% & 24\,\% \\
 \bottomrule
 \end{tabular}
 \end{center}
-The treatments of the noise cost nothing during playback: they are in the response. The memory used
-is about 20\,MB at 48\,kHz (40\,MB with Cross); during a rebuild, computing the response briefly
-needs more (up to 340\,MB in the worst case at 192\,kHz).
+The values vary by a few per cent from one measurement to the next. The treatments of the noise
+cost nothing during playback: they are in the response. The memory reserved for the spectra of the
+input is about 25\,MB at 48\,kHz and 90\,MB at 192\,kHz; each response adds as much for 30\,s (twice
+as much with Cross), and two responses coexist during a change.
 
 \subsection{Change of response}\label{sec:change}
 
@@ -640,11 +660,12 @@ The settings of the SOURCE, TUNE, ENVELOPE and MOTION sections define the respon
 of them means making it again, as does a change of the tempo of the host while RHYTHM is on. A
 setting without effect with the others (NOTE when TUNE is OFF, for example) does not. This work is
 done in a thread of the plugin, never in the audio processing, which goes on with the old response.
-When the new one is ready, it is taken at the start of a tail block. Since the spectra of the input
+When the new one is ready, it is taken at the start of a block of stage 2. Since the spectra of the input
 do not depend on the response, the new response has the whole past of the signal at once: the pad
 does not start again from silence. The output goes from the old response to the new one by a linear
-crossfade of $M$ samples (85\,ms at 48\,kHz), then the old one is freed, in the thread of the
-plugin.
+crossfade of $M_1$ samples (85\,ms at 48\,kHz), one block of stage 2 later (the time for every
+stage to have the new response), then the old one is freed, in the thread of the plugin. A change
+is thus heard at most 0.7\,s after it has been made.
 
 Turning one of these knobs during playback therefore gives a series of crossfades, without a click,
 with a slight delay. When the plugin is activated (start of playback or of a render), the response
@@ -695,8 +716,8 @@ computation and gives the host its own state back on return.
 
 \begin{description}
 \item[A pad from an instrument.] Soft pad or Endless wash on an auxiliary send, Mix at 100\,\%:
-  detached notes become a continuous background. The longer the Length and the closer Decay is to
-  0, the steadier the pad.
+  detached notes become a continuous background. The longer the Length and the smaller Decay (a long
+  hold), the steadier the pad.
 \item[A tuned pad.] Tuned drone or Chord pad on a rich source (drums, noise, distorted guitar): the
   pad takes the note or the chord. Tune NOTE to the key of the song; raise RESONANCE for clearer
   notes.
@@ -739,6 +760,9 @@ computation and gives the host its own state back on return.
   \texttt{output}), numbers with a decimal point whatever the language of the system. A missing
   key takes its default value, a value out of range is brought back within the range, an unknown
   line is ignored. Copying the file is enough to share a preset.
+\item[From 1.1.] Decay, which was the end level in dB, became the part of the length taken by
+  the fall: a value saved in 1.1 (from $-60$ to 0) is read as 0\,\%, a pad held to the end; set it
+  again.
 \item[From 1.0.] The Noise setting (white or pink) became Colour: a project or a preset of 1.0 keeps
   its other settings, the colour goes back to pink ($-3$) and the new settings to their defaults,
   so that the sound is that of 1.0 with pink noise.
@@ -750,7 +774,7 @@ computation and gives the host its own state back on return.
 \item Latency of 256 samples: compensated by the host, but audible when playing live through the
   plugin with a very small buffer.
 \item A change of the settings of the response arrives with a slight delay (the time to make it
-  again, up to 1\,s in the worst case at 192\,kHz); in an offline render faster than real time, an
+  again, up to 2.7\,s in the worst case at 192\,kHz, then at most 0.7\,s until the crossfade); in an offline render faster than real time, an
   automation of these settings may therefore land a little later than on playback.
 \item The motions (LFO, rhythm, stereo) start at the attack of each sound, not on the time of the
   song.
