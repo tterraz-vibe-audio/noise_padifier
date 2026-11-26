@@ -1,6 +1,6 @@
 # Noise Padifier - améliorations
 
-Statut : ouvert (session 69, 2026-11-26). Version publiée : 1.0.1. Tout ajout qui change la sortie
+Statut : fait, publié en **1.1.0** (release `v1.1.0`, 2026-11-26). Restent les pistes non faites de `LISEZMOI.md`. Tout ajout qui change la sortie
 demande une nouvelle version (1.1.0).
 
 Principe commun : un traitement du bruit modifie la réponse impulsionnelle ; il est calculé à la
@@ -81,5 +81,5 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
   réponses étape par étape, coût avec Cross, compatibilité 1.0, limites), figures (`figures.py` :
   nouvelle interface de `tools/ir.cpp`, `fig_traitements`, `fig_stereo`, pad accordé dans
   `fig_pad`), README, LISEZMOI, installateur en 1.1.0.
-- À faire : release 1.1.0 (sur accord) : `./build.sh` propre, installateur sous Wine, archives,
-  notes, étiquette, `gh release create`.
+- **Publié** : commit `4247136`, étiquette et release GitHub `v1.1.0` (installateur, archives
+  Windows et Linux, deux manuels).

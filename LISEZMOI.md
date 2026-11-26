@@ -107,9 +107,9 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
 - Validateur VST3 de Steinberg (`tools/validate_vst3.sh`) : 47/47 sur le VST3 Linux et sur le VST3
   Windows (sous Wine ; le script passe `-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY`, sans quoi
   `-municode` fait échouer le test du compilateur de CMake avec le MinGW de cette machine).
-- Installateur (NSIS, 1.0.1) : installation et désinstallation silencieuses (`/S`) sous Wine dans un
-  préfixe neuf : VST3 identique à `bin/windows/`, CLAP, manuels identiques, licences, raccourcis du
-  menu Démarrer, entrée du registre, puis tout retiré (à refaire pour la 1.1.0 à la release).
+- Installateur (NSIS, 1.1.0) : installation et désinstallation silencieuses (`/S`) sous Wine dans un
+  préfixe neuf : VST3 et CLAP identiques à `bin/windows/`, manuels identiques, licences, raccourcis
+  du menu Démarrer, version 1.1.0 au registre, puis tout retiré.
 - Interface 1.1.0 affichée par la version autonome Windows sous Wine, deux thèmes (`doc/captures/` :
   Chord pad en Dusk, Blooming en Pearl).
 - **Non vérifié** : écoute ; vrai logiciel audio ; clics et saisie dans un hôte ; installateur sur
@@ -133,6 +133,11 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   autonome (`make -C plugin jack BUILD_DIR_SUFFIX=-demo-<x> DPF_TARGET_DIR=../build-demo-<x>/bin`
   avec les variables MinGW de `build.sh`) sous Wine, `import -window` sur la fenêtre « Noise
   Padifier » (`xwininfo -root -tree`) ; la bulle affichée suit la vraie souris.
+- **Release `v1.1.0`** (2026-11-26, commit `4247136`) : traitements du bruit (`AMELIORATIONS.md`),
+  interface 1200 × 760, manuels de 17 pages. Même procédure ; fichiers dans `build/release/1.1.0/`,
+  notes `build/release/notes-1.1.0.md` ; installateur testé sous Wine (préfixe neuf : fichiers
+  identiques, version 1.1.0 au registre, tout retiré), validateur 47/47 Linux et Windows sur les
+  binaires publiés.
 - Captures de la 1.1.0 : ajouter `-DPADIFIER_UI_DEMO_PRESET=<n>` ; chercher la fenêtre par sa taille
   (`grep 1200x760`), sinon `import` peut prendre l'écran entier ; atelier du validateur
   `build/vst3val`, préfixe Wine `build/wineprefix` (dans `build/`, non suivi).
