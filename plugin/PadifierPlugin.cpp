@@ -8,17 +8,19 @@
  * the GNU General Public License as published by the Free Software Foundation; either
  * version 3 of the License, or (at your option) any later version.  See COPYING.
  *
- * The input is convolved with white or pink noise under an envelope (NoiseIR.hpp): every
- * sound is smeared over the length of the response into a pad.  Signal flow:
- *   (L, R) -> convolution, L with the left response, R with the right one (Convolver.hpp;
- *   latency 256 samples, reported to the host) -> low cut -> high cut -> width -> wet;
+ * The input is convolved with noise shaped along the response (NoiseIR.hpp): every sound is
+ * smeared over the length of the response into a pad.  Signal flow:
+ *   (L, R) -> convolution, L with the left response, R with the right one, plus the cross
+ *   responses with Cross (Convolver.hpp; latency 256 samples, reported to the host)
+ *   -> pre-delay -> low cut -> high cut -> width -> wet;
  *   out = wet x sin(pi/2 mix) + dry x cos(pi/2 mix) (dry delayed by the latency)
  *   -> output gain -> bypass crossfade (to the delayed dry signal: same latency).
  *
- * A change of Noise, Length, Swell, Decay or Seed rebuilds the response in a thread of the
- * plugin (never in the audio thread); the new response is crossfaded in by the convolver.
- * activate() builds it at once: rendering starts with the right response.  Mix, width, filters
- * and output go to their new values in 20 ms.
+ * A change of a setting of the response (isIRParam), or of the tempo of the host while the
+ * rhythm is on, rebuilds the response in a thread of the plugin (never in the audio thread);
+ * the new response is crossfaded in by the convolver.  activate() builds it at once: rendering
+ * starts with the right response.  Mix, width, filters and output go to their new values in
+ * 20 ms; a change of pre-delay crossfades from the old delay to the new one in 30 ms.
  */
 
 #include "DistrhoPlugin.hpp"
@@ -185,7 +187,7 @@ public:
     {
         for (uint32_t i = 0; i < kParamCount; ++i)
             fParams[i] = kPadifierRanges[i].def;
-        for (int i = 0; i < kIRParamCount; ++i)
+        for (int i = 0; i < kParamFirstOutput; ++i)
             fIRParams[i].store(fParams[i]);
         fLowCut.highPass = true;
         fHighCut.highPass = false;
@@ -214,11 +216,11 @@ protected:
     const char* getLabel() const override { return "NoisePadifier"; }
     const char* getDescription() const override
     {
-        return "Convolution with white or pink noise under an envelope: turns any sound into a pad.";
+        return "Convolution with shaped noise (colour, tuning, envelope, rhythm, motion): turns any sound into a pad.";
     }
     const char* getMaker() const override { return "Padifier"; }
     const char* getLicense() const override { return "GPL-3.0-or-later"; }
-    uint32_t getVersion() const override { return d_version(1, 0, 1); }
+    uint32_t getVersion() const override { return d_version(1, 1, 0); }
 
     void initParameter(const uint32_t index, Parameter& p) override
     {
@@ -235,20 +237,7 @@ protected:
 
         switch (index)
         {
-        case kParamNoise:
-        {
-            set(p, "Noise", "noise", "");
-            p.hints |= kParameterIsInteger;
-            ParameterEnumerationValue* const v = new ParameterEnumerationValue[2];
-            v[0].value = 0.0f;
-            v[0].label = "White";
-            v[1].value = 1.0f;
-            v[1].label = "Pink";
-            p.enumValues.count = 2;
-            p.enumValues.restrictedMode = true;
-            p.enumValues.values = v;
-            break;
-        }
+        case kParamColour:   set(p, "Colour", "colour", "dB/oct"); break;
         case kParamLength:
             set(p, "Length", "length", "s");
             p.hints |= kParameterIsLogarithmic;
@@ -273,6 +262,59 @@ protected:
         case kParamMeterIn:  output(p, "Input level", "meter_in", "dB"); break;
         case kParamMeterWet: output(p, "Pad level", "meter_wet", "dB"); break;
         case kParamMeterOut: output(p, "Output level", "meter_out", "dB"); break;
+        case kParamTempo:
+            output(p, "Tempo", "tempo", "BPM");
+            p.ranges.min = kPadifierRanges[kParamTempo].min;
+            p.ranges.max = kPadifierRanges[kParamTempo].max;
+            p.ranges.def = kPadifierRanges[kParamTempo].def;
+            break;
+        case kParamDensity:
+            set(p, "Density", "density", "/s");
+            p.hints |= kParameterIsLogarithmic;
+            break;
+        case kParamTune:
+            set(p, "Tune", "tune", "");
+            enumeration(p, kTuneNames, 3);
+            break;
+        case kParamNote:
+            set(p, "Note", "note", "");
+            p.hints |= kParameterIsInteger;
+            break;
+        case kParamChord:
+        {
+            set(p, "Chord", "chord", "");
+            const char* names[kChordCount];
+            for (int i = 0; i < kChordCount; ++i)
+                names[i] = kChords[i].name;
+            enumeration(p, names, kChordCount);
+            break;
+        }
+        case kParamResonance: set(p, "Resonance", "resonance", "%"); break;
+        case kParamDamping:   set(p, "Damping", "damping", "dB/oct"); break;
+        case kParamBloom:     set(p, "Bloom", "bloom", "%"); break;
+        case kParamLfoRate:
+            set(p, "LFO rate", "lforate", "Hz");
+            p.hints |= kParameterIsLogarithmic;
+            break;
+        case kParamLfoPitch:  set(p, "LFO pitch", "lfopitch", "st"); break;
+        case kParamLfoTone:   set(p, "LFO tone", "lfotone", "dB/oct"); break;
+        case kParamRhythm:
+        {
+            set(p, "Rhythm", "rhythm", "");
+            const char* names[kDivisionCount];
+            for (int i = 0; i < kDivisionCount; ++i)
+                names[i] = kDivisions[i].name;
+            enumeration(p, names, kDivisionCount);
+            break;
+        }
+        case kParamDuty:      set(p, "Duty", "duty", "%"); break;
+        case kParamPanRate:
+            set(p, "Pan rate", "panrate", "Hz");
+            p.hints |= kParameterIsLogarithmic;
+            break;
+        case kParamPanDepth:  set(p, "Pan depth", "pandepth", "%"); break;
+        case kParamCross:     set(p, "Cross", "cross", "%"); break;
+        case kParamPredelay:  set(p, "Pre-delay", "predelay", "ms"); break;
         }
     }
 
@@ -312,7 +354,8 @@ protected:
         if (index >= static_cast<uint32_t>(kPadifierPresetCount))
             return;
         for (int i = 0; i < kPresetParamCount; ++i)
-            setParameterValue(i, kPadifierPresets[index].values[i]);
+            if (isPresetParam(i))
+                setParameterValue(i, kPadifierPresets[index].values[i]);
     }
 
     float getParameterValue(const uint32_t index) const override
@@ -326,7 +369,7 @@ protected:
             return;
         const bool changed = fParams[index] != value;
         fParams[index] = value;
-        if (changed && index < static_cast<uint32_t>(kIRParamCount))
+        if (changed && isIRParam(static_cast<int>(index)))
         {
             fIRParams[index].store(value, std::memory_order_relaxed);
             fIRRequest.fetch_add(1, std::memory_order_release);
@@ -359,6 +402,7 @@ protected:
         if (frames == 0)
             return;
         setTargets(true);
+        readTempo();
 
         float peakIn = 0.0f, peakWet = 0.0f, peakOut = 0.0f;
         float wet[2][kChunk], dry[2][kChunk];
@@ -370,6 +414,7 @@ protected:
             float* const w[2] = { wet[0], wet[1] };
             float* const d[2] = { dry[0], dry[1] };
             fEngine.process(in, w, d, n);
+            preDelay(w, n);
             float* const outL = outputs[0] + done;
             float* const outR = outputs[1] + done;
 
@@ -433,6 +478,70 @@ private:
         p.unit = unit;
     }
 
+    static void enumeration(Parameter& p, const char* const* names, const int count)
+    {
+        p.hints |= kParameterIsInteger;
+        ParameterEnumerationValue* const v = new ParameterEnumerationValue[count];
+        for (int i = 0; i < count; ++i)
+        {
+            v[i].value = static_cast<float>(i);
+            v[i].label = names[i];
+        }
+        p.enumValues.count = static_cast<uint8_t>(count);
+        p.enumValues.restrictedMode = true;
+        p.enumValues.values = v;
+    }
+
+    // tempo of the host (the last one known when it gives none): a change rebuilds the response
+    // while the rhythm is on
+    void readTempo()
+    {
+        const TimePosition& tp = getTimePosition();
+        if (tp.bbt.valid && tp.bbt.beatsPerMinute > 0.0)
+        {
+            const float bpm = static_cast<float>(std::fmin(std::fmax(tp.bbt.beatsPerMinute, 20.0), 300.0));
+            if (bpm != fParams[kParamTempo])
+            {
+                fParams[kParamTempo] = bpm;
+                fTempo.store(bpm, std::memory_order_relaxed);
+                if (PadifierLaw::choice(fParams[kParamRhythm], kDivisionCount) > 0)
+                    fIRRequest.fetch_add(1, std::memory_order_release);
+            }
+        }
+    }
+
+    // pre-delay of the wet signal: integer delay; a change crossfades from the old delay to the
+    // new one in 30 ms, the next change waits for the end of the crossfade
+    void preDelay(float* const w[2], const int n)
+    {
+        const unsigned target = std::min(static_cast<unsigned>(std::lround(fParams[kParamPredelay] * 1e-3 * getSampleRate())),
+                                         fPreMask - 1);
+        if (fPreFade == 0 && target != fPreCur)
+        {
+            fPreNext = target;
+            fPreFadeLength = fPreFade = std::max(1, static_cast<int>(0.03 * getSampleRate()));
+        }
+        if (fPreCur == 0 && fPreFade == 0)
+            return;   // no delay: nothing to do (the line keeps no state)
+        for (int i = 0; i < n; ++i)
+        {
+            float t = 0.0f;
+            if (fPreFade > 0)
+                t = 1.0f - static_cast<float>(fPreFade) / fPreFadeLength;
+            for (int c = 0; c < 2; ++c)
+            {
+                fPre[c][fPrePos] = w[c][i];
+                float y = fPre[c][(fPrePos - fPreCur) & fPreMask];
+                if (fPreFade > 0)
+                    y += (fPre[c][(fPrePos - fPreNext) & fPreMask] - y) * t;
+                w[c][i] = y;
+            }
+            if (fPreFade > 0 && --fPreFade == 0)
+                fPreCur = fPreNext;
+            fPrePos = (fPrePos + 1) & fPreMask;
+        }
+    }
+
     static void output(Parameter& p, const char* name, const char* symbol, const char* unit)
     {
         p.hints = kParameterIsOutput;
@@ -453,16 +562,19 @@ private:
         fEngine.discard();
         fSetups.reset(new PadifierConv::Setups(PadifierConv::kHeadBlock, PadifierConv::tailBlock(sr)));
         fEngine.configure(fSetups.get(), static_cast<int>(std::ceil(kMaxLength * sr)) + 1);
+        unsigned size = 2;
+        while (size < static_cast<unsigned>(1e-3 * kPadifierRanges[kParamPredelay].max * sr) + 2)
+            size *= 2;
+        for (int c = 0; c < 2; ++c)
+            fPre[c].assign(size, 0.0f);
+        fPreMask = size - 1;
         buildNow();
     }
 
     // the response of the current parameters, used at once (fBuildMutex held, not real-time)
     void buildNow()
     {
-        float p[kIRParamCount];
-        for (int i = 0; i < kIRParamCount; ++i)
-            p[i] = fParams[i];
-        fBuilt = PadifierIR::fromParams(p, fRate);
+        fBuilt = PadifierIR::fromParams(fParams, fRate, fTempo.load(std::memory_order_relaxed));
         fBuiltRequest = fIRRequest.load(std::memory_order_acquire);
         delete fEngine.offer(nullptr);   // a response built before is outdated
         fEngine.setNow(build(fBuilt));
@@ -470,11 +582,12 @@ private:
 
     PadifierConv::IRSet* build(const PadifierIR::Settings& s) const
     {
-        std::vector<float> h[2];
-        PadifierIR::generate(s, 0, h[0]);
-        PadifierIR::generate(s, 1, h[1]);
-        const float* const hp[2] = { h[0].data(), h[1].data() };
-        return new PadifierConv::IRSet(*fSetups, hp, static_cast<int>(h[0].size()));
+        const PadifierIR::Response r = PadifierIR::generate(s);
+        const float* hp[2][2];
+        for (int i = 0; i < 2; ++i)
+            for (int o = 0; o < 2; ++o)
+                hp[i][o] = r.h[i][o].empty() ? nullptr : r.h[i][o].data();
+        return new PadifierConv::IRSet(*fSetups, hp, r.length);
     }
 
     // thread of the plugin: builds the responses asked for, frees those no longer used
@@ -491,10 +604,10 @@ private:
                 if (request != fBuiltRequest && fSetups)
                 {
                     fBuiltRequest = request;
-                    float p[kIRParamCount];
-                    for (int i = 0; i < kIRParamCount; ++i)
+                    float p[kParamFirstOutput];
+                    for (int i = 0; i < kParamFirstOutput; ++i)
                         p[i] = fIRParams[i].load(std::memory_order_relaxed);
-                    const PadifierIR::Settings s = PadifierIR::fromParams(p, fRate);
+                    const PadifierIR::Settings s = PadifierIR::fromParams(p, fRate, fTempo.load(std::memory_order_relaxed));
                     if (!(s == fBuilt))
                     {
                         fBuilt = s;
@@ -531,13 +644,20 @@ private:
         fHighCut.reset(fParams[kParamHighCut], getSampleRate());
         setTargets(false);
         fMeterIn = fMeterWet = fMeterOut = 0.0f;
+        for (int c = 0; c < 2; ++c)
+            std::fill(fPre[c].begin(), fPre[c].end(), 0.0f);
+        fPrePos = 0;
+        fPreCur = fPreNext = std::min(static_cast<unsigned>(std::lround(fParams[kParamPredelay] * 1e-3 * getSampleRate())),
+                                      fPreMask - 1);
+        fPreFade = 0;
     }
 
     float fParams[kParamCount];
     String fStates[kStateCount];   // strings of the interface, only kept for the host
 
     // the response: parameters for the thread, requests counted by the audio side
-    std::atomic<float> fIRParams[kIRParamCount];
+    std::atomic<float> fIRParams[kParamFirstOutput];   // all the inputs (those of the response used)
+    std::atomic<float> fTempo { kDefaultTempo };        // tempo of the host, BPM
     std::atomic<unsigned> fIRRequest { 0 };
     std::mutex fBuildMutex;        // held while a response is built or the buffers change
     unsigned fBuiltRequest = 0;    // under fBuildMutex
@@ -553,6 +673,9 @@ private:
     Ramp<float> fWet, fDry, fWidth, fGain, fBypass;
     Butterworth fLowCut, fHighCut;
     float fMeterIn = 0.0f, fMeterWet = 0.0f, fMeterOut = 0.0f;
+    std::vector<float> fPre[2];    // pre-delay lines
+    unsigned fPreMask = 1, fPrePos = 0, fPreCur = 0, fPreNext = 0;
+    int fPreFade = 0, fPreFadeLength = 1;
 
     DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PadifierPlugin)
 };

@@ -5,7 +5,9 @@
  * Copyright (C) 2026 Padifier authors
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Each input channel is convolved with its own impulse response (left -> left, right -> right).
+ * Output o = input o convolved with h[o][o], plus, with cross responses (true stereo), the other
+ * input convolved with h[1 - o][o].  Without them the cost is that of two convolutions; with
+ * them the products double (the spectra of the inputs are shared).
  * Two stages of uniformly partitioned overlap-save convolution (FFT: pffft), sharing the
  * frequency-domain delay lines of the input:
  * - head: blocks of B = 256 samples, response samples [0, 2M); latency B;
@@ -14,7 +16,7 @@
  *   (j + 1) R - 1 (R = M / B frames of B); its contribution starts at sample jM + 2M, i.e.
  *   frame (j + 2) R.  The work (one FFT, the products of the P tail partitions, one inverse
  *   FFT) is spread over the R frames in between: P / R partitions per frame.
- * Cost per sample and channel, 10 s at 48 kHz: 32 + 116 complex products.
+ * Cost per sample and output, 10 s at 48 kHz: 32 + 116 complex products (twice with cross).
  *
  * Change of response: the new set of spectra (built elsewhere, IRSet) is taken at the start of
  * a tail block (frame A, A = 0 mod R).  The delay lines hold the spectra of the input, whatever
@@ -104,29 +106,37 @@ private:
     PFFFT_Setup* fTail;
 };
 
-// Spectra of the partitions of a stereo impulse response (scaled for the inverse FFT).
+// Spectra of the partitions of the responses h[input][output] (scaled for the inverse FFT).
 struct IRSet
 {
     int B = 0, M = 0, length = 0, headParts = 0, tailParts = 0;
-    Buffer head[2], tail[2];   // headParts x 2B, tailParts x 2M floats, pffft order
+    bool cross = false;           // h[1][0] and h[0][1] present
+    Buffer head[2][2], tail[2][2];   // headParts x 2B, tailParts x 2M floats, pffft order
+
+    bool has(const int i, const int o) const { return i == o || cross; }
 
     static int headPartsFor(const int n, const int B, const int M) { return (std::min(n, 2 * M) + B - 1) / B; }
     static int tailPartsFor(const int n, const int M) { return n > 2 * M ? (n - 2 * M + M - 1) / M : 0; }
 
-    // h[c]: n samples of channel c
-    IRSet(const Setups& s, const float* const h[2], const int n)
-        : B(s.B()), M(s.M()), length(n), headParts(headPartsFor(n, B, M)), tailParts(tailPartsFor(n, M))
+    // h[i][o]: n samples from input i to output o; the cross ones (i != o) may be null
+    IRSet(const Setups& s, const float* const h[2][2], const int n)
+        : B(s.B()), M(s.M()), length(n), headParts(headPartsFor(n, B, M)), tailParts(tailPartsFor(n, M)),
+          cross(h[1][0] != nullptr && h[0][1] != nullptr)
     {
         Buffer tmp(2 * static_cast<size_t>(M)), work(2 * static_cast<size_t>(M));
-        for (int c = 0; c < 2; ++c)
-        {
-            head[c].allocate(static_cast<size_t>(headParts) * 2 * B);
-            tail[c].allocate(static_cast<size_t>(tailParts) * 2 * M);
-            for (int p = 0; p < headParts; ++p)
-                partition(s.head(), h[c], n, p * B, B, head[c].data() + static_cast<size_t>(p) * 2 * B, tmp, work);
-            for (int p = 0; p < tailParts; ++p)
-                partition(s.tail(), h[c], n, 2 * M + p * M, M, tail[c].data() + static_cast<size_t>(p) * 2 * M, tmp, work);
-        }
+        for (int i = 0; i < 2; ++i)
+            for (int o = 0; o < 2; ++o)
+            {
+                if (!has(i, o))
+                    continue;
+                head[i][o].allocate(static_cast<size_t>(headParts) * 2 * B);
+                tail[i][o].allocate(static_cast<size_t>(tailParts) * 2 * M);
+                for (int p = 0; p < headParts; ++p)
+                    partition(s.head(), h[i][o], n, p * B, B, head[i][o].data() + static_cast<size_t>(p) * 2 * B, tmp, work);
+                for (int p = 0; p < tailParts; ++p)
+                    partition(s.tail(), h[i][o], n, 2 * M + p * M, M, tail[i][o].data() + static_cast<size_t>(p) * 2 * M, tmp,
+                              work);
+            }
     }
 
 private:
@@ -347,14 +357,19 @@ private:
                 continue;
             const int P = ln.set->tailParts;
             const int p0 = phase * P / R, p1 = (phase + 1) * P / R;
-            for (int c = 0; c < 2; ++c)
+            for (int c = 0; c < 2; ++c)   // output
             {
                 float* const acc = ln.tailAcc[c].data();
-                for (int p = p0; p < p1; ++p)
+                for (int i = 0; i < 2; ++i)   // input
                 {
-                    const int slot = (fTailPos - p + fMaxTail) % fMaxTail;
-                    pffft_zconvolve_accumulate(fS->tail(), fTailFdl[c].data() + static_cast<size_t>(slot) * 2 * M,
-                                               ln.set->tail[c].data() + static_cast<size_t>(p) * 2 * M, acc, 1.0f);
+                    if (!ln.set->has(i, c))
+                        continue;
+                    for (int p = p0; p < p1; ++p)
+                    {
+                        const int slot = (fTailPos - p + fMaxTail) % fMaxTail;
+                        pffft_zconvolve_accumulate(fS->tail(), fTailFdl[i].data() + static_cast<size_t>(slot) * 2 * M,
+                                                   ln.set->tail[i][c].data() + static_cast<size_t>(p) * 2 * M, acc, 1.0f);
+                    }
                 }
                 if (phase == R - 1)
                 {
@@ -382,7 +397,7 @@ private:
         {
             Lane& ln = fLane[l];
             const bool audible = l == fActive || fFade == kRamping;
-            for (int c = 0; c < 2; ++c)
+            for (int c = 0; c < 2; ++c)   // output
             {
                 if (!audible || ln.set == nullptr)
                 {
@@ -391,11 +406,16 @@ private:
                 }
                 float* const acc = fHeadAcc.data();
                 std::memset(acc, 0, sizeof(float) * 2 * B);
-                for (int p = 0; p < ln.set->headParts; ++p)
+                for (int i = 0; i < 2; ++i)   // input
                 {
-                    const int slot = (fHeadPos - p + fMaxHead) % fMaxHead;
-                    pffft_zconvolve_accumulate(fS->head(), fHeadFdl[c].data() + static_cast<size_t>(slot) * 2 * B,
-                                               ln.set->head[c].data() + static_cast<size_t>(p) * 2 * B, acc, 1.0f);
+                    if (!ln.set->has(i, c))
+                        continue;
+                    for (int p = 0; p < ln.set->headParts; ++p)
+                    {
+                        const int slot = (fHeadPos - p + fMaxHead) % fMaxHead;
+                        pffft_zconvolve_accumulate(fS->head(), fHeadFdl[i].data() + static_cast<size_t>(slot) * 2 * B,
+                                                   ln.set->head[i][c].data() + static_cast<size_t>(p) * 2 * B, acc, 1.0f);
+                    }
                 }
                 pffft_transform(fS->head(), acc, fTmp.data(), fWork.data(), PFFFT_BACKWARD);
                 std::memcpy(ln.out[c].data(), fTmp.data() + B, sizeof(float) * B);

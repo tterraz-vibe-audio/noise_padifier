@@ -1,36 +1,42 @@
 # Noise Padifier
 
-A convolution pad effect for VST3, CLAP and LV2: the input is convolved with **white or pink
-noise under an envelope** (0.1 to 10 s), so that every note and every attack is smeared into a
-pad. The timbre of the source stays (its harmonics keep their place), its shape in time is
-replaced by the envelope.
+A convolution pad effect for VST3, CLAP and LV2: the input is convolved with **shaped noise**
+(0.1 to 10 s), so that every note and every attack is smeared into a pad. The timbre of the source
+stays (its harmonics keep their place), its shape in time is replaced by the response, and the
+noise can be coloured, tuned, shaped in time and frequency, made rhythmic and moved in stereo.
 
-![Noise Padifier, Dusk theme](doc/captures/capture_dusk.png)
+![Noise Padifier, Dusk theme, Chord pad preset](doc/captures/capture_dusk.png)
 
 ## Features
 
-- **Noise**: white (flat, bright, airy) or pink (-3 dB/octave from 20 Hz, warm and full);
-  **Seed** picks another draw of the same noise, and the same seed always gives the same
-  response on every computer.
-- **Envelope**: **Length** (0.1-10 s), **Swell** (rise time, % of the length; 100 % gives a
-  reverse swell), **Decay** (level at the end, -60 to 0 dB; 0 dB gives a held pad), shown as a
-  curve.
-- **True stereo width**: independent noises left and right, so even a mono source comes out wide;
-  **Width** 0-200 %.
-- **Low cut** and **High cut** on the pad (12 dB/octave), **Mix** at constant power, **Output**.
-- Unit-energy responses: a broadband input keeps its level in the pad, whatever the settings.
+- **Source**: **Colour** from brown (-6 dB/octave) through pink and white to violet (+6), **Density**
+  from smooth noise down to sparse "velvet" noise (a cloud of grains or echoes), **Seed** (the same
+  seed always gives the same response, on every computer).
+- **Tune**: a comb filter on a **note**, or one comb per note of a **chord** (major, minor, sus,
+  sevenths, octaves...), with **resonance** and **vibrato**: the pad takes the note or the chord.
+- **Envelope**: **Length**, **Swell** (rise; 100 % gives a reverse swell), **Decay** (level at the
+  end; 0 dB gives a held pad), **Damping** (the highs die sooner) and **Bloom** (the peak moves with
+  frequency: the pad opens up or warms up).
+- **Motion along the response**: an **LFO** on the pitch of the combs and on the colour, a
+  **rhythm** gate on the tempo of the host (1/1 to 1/32, dotted, triplets) with **duty**, a stereo
+  **pan** motion, and **Cross**: true stereo, each input also reaching the other side.
+- All these treatments are computed once, when the response is built (in a worker thread; the new
+  response is crossfaded in without a click), and **cost nothing during playback**.
 - **Low-latency, low-CPU convolution**: two-stage uniformly partitioned FFT convolution (pffft),
   work spread evenly over the blocks, no allocation in the audio thread; 256 samples of latency,
-  reported to the host. About 2.4 % of one core at 48 kHz with a 10 s response.
-- Changing the response (noise, seed, envelope) rebuilds it in a worker thread and crossfades it
-  in without a click; the new response gets the whole past of the input at once.
-- **Presets**: 8 factory presets and your own (save, replace, delete), shared by all projects.
+  reported to the host. About 2.2 % of one core at 48 kHz with a 10 s response (4.5 % with Cross).
+- **Pre-delay**, **Low cut** and **High cut** on the pad (12 dB/octave), **Width**, **Mix** at
+  constant power, **Output**; unit-energy responses: a broadband input keeps its level in the pad.
+- **Interface**: five sections in the order of the signal, a **time-frequency map** of the
+  response (envelope, damping, bloom, gate, notes of the combs with their vibrato), the spectrum of
+  the pad and meters; knobs without effect are drawn faint.
+- **Presets**: 13 factory presets and your own (save, replace, delete), shared by all projects.
 - **A/B comparison** saved with the project; dark (Dusk) and light (Pearl) themes; tooltips
   everywhere; keyboard entry of values (right-click a knob); resizable HiDPI interface.
 - Bypass declared to the host (delayed dry signal: constant latency), smoothed controls, no
   denormal slowdown.
 
-![Pearl theme](doc/captures/capture_pearl.png)
+![Pearl theme, Blooming preset](doc/captures/capture_pearl.png)
 
 ## Formats
 
@@ -41,7 +47,7 @@ replaced by the envelope.
 
 ## Installation
 
-**Windows**: run `Noise-Padifier-1.0.1-setup.exe` (VST3, optional CLAP and user manuals).
+**Windows**: run `Noise-Padifier-1.1.0-setup.exe` (VST3, optional CLAP and user manuals).
 Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common Files\VST3\` and
 `noise_padifier.clap` to `C:\Program Files\Common Files\CLAP\`.
 
@@ -51,10 +57,10 @@ Manually: copy the `noise_padifier.vst3` folder to `C:\Program Files\Common File
 ## Documentation
 
 - **User manual**: [`doc/manual.pdf`](doc/manual.pdf) (English), [`doc/manuel.pdf`](doc/manuel.pdf)
-  (French): every setting, the presets, tips,
-  and a description of the algorithm (impulse response, partitioned convolution, crossfade of a
-  new response, mix law, measured cost), with figures computed from the plugin's own code
-  (`doc/figures.py`; impulse responses through `tools/ir.cpp`).
+  (French): every setting, the presets, tips, and a description of the algorithm (the steps that
+  make the responses, partitioned convolution, crossfade of a new response, mix law, measured
+  cost), with figures computed from the plugin's own code (`doc/figures.py`; impulse responses
+  through `tools/ir.cpp`).
 - Developer notes (French): [`LISEZMOI.md`](LISEZMOI.md).
 
 ## Building
@@ -72,13 +78,16 @@ for m in manual manuel; do pdflatex $m.tex && pdflatex $m.tex && pdflatex $m.tex
 
 ## Tests
 
-`tests/test_dsp.cpp`, built twice (strict, and with the plugin's `-O3 -ffast-math`):
-convolution against a direct double-precision convolution (within 4.4e-7 of the peak, responses
-from 1 sample to five tail blocks, 48, 96 and 192 kHz, odd host block sizes), exact crossfade
-between two responses, impulse responses (unit energy, reproducible, decorrelated channels,
-envelope, white and pink spectra), and the whole plugin (latency, bit-exact mix 0 % and bypass,
-filters, width, presets, meters, FPU state). Also `tests/test_prefs.cpp` and
-`tests/test_user_presets.cpp`. Steinberg's VST3 validator passes 47/47 on the Linux build.
+`tests/test_ir.cpp` measures each treatment on the responses made by the plugin against its law
+(colour within 0.73 dB per octave, comb and chord peaks, vibrato within 0.4 Hz, damping within
+0.8 dB, bloom within 0.15 s, LFO on the colour, exact gate, pan, cross). `tests/test_dsp.cpp`,
+built twice (strict, and with the plugin's `-O3 -ffast-math`): convolution against a direct
+double-precision convolution (within 4.4e-7 of the peak, 48 to 192 kHz, odd host block sizes; crossed
+responses within 3.5e-7), exact crossfade between two responses, and the whole plugin (latency,
+bit-exact mix 0 % and bypass, convolution with the responses of the settings, tempo of the host,
+exact pre-delay, filters, width, presets, FPU state). Also `tests/test_prefs.cpp` and
+`tests/test_user_presets.cpp`. Steinberg's VST3 validator passes 47/47 on the Linux and Windows
+builds.
 
 ## Licence
 

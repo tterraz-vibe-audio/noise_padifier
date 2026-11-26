@@ -7,18 +7,18 @@
  *
  * 1. Convolver: output == direct convolution (double) delayed by 256 samples, for responses
  *    shorter than a block up to several tail partitions, at 48, 96 and 192 kHz (the three tail
- *    block sizes), odd host block sizes; the dry output is the input delayed exactly.
+ *    block sizes), odd host block sizes; the dry output is the input delayed exactly.  With
+ *    cross responses (true stereo): each output == the sum of both inputs convolved.
  * 2. Change of response: old response before the crossfade, (1 - g) old + g new during it
  *    (g linear over M samples, at the place given by the head of Convolver.hpp), the new one
  *    after; the old set comes back to be freed.
- * 3. Impulse response: unit energy, the same bits twice, left and right uncorrelated, another
- *    seed gives another noise, the envelope (RMS by windows), spectrum of the noise (white:
- *    +3 dB per octave in octave bands, pink: flat).
- * 4. Plugin: latency 256; mix 0 and bypass: the input delayed, exactly; mix 100 % with the
- *    filters off == the convolution with the response of the parameters; a change of length
- *    rebuilt by the thread and crossfaded in; low cut, high cut; width 0: L == R; presets
- *    finite; meters; FPU state of the caller restored.
- * 5. Cost (printed, not checked): time per second of audio.
+ * 3. Plugin: latency 256; mix 0 and bypass: the input delayed, exactly; mix 100 % with the
+ *    filters off == the convolution with the responses of the parameters, also with Cross; a
+ *    change of length rebuilt by the thread and crossfaded in; the tempo of the host rebuilds
+ *    the response of the rhythm; pre-delay: the wet signal delayed exactly; low cut, high cut;
+ *    width 0: L == R; presets finite; meters; FPU state of the caller restored.
+ * 4. Cost (printed, not checked): time per second of audio.
+ * The impulse responses themselves are tested by tests/test_ir.cpp.
  */
 #include "src/DistrhoPluginInternal.hpp"
 #include "src/DistrhoPlugin.cpp"
@@ -80,8 +80,18 @@ struct EngineRun {
     PadifierConv::IRSet* retired = nullptr;
 };
 
+// h[c]: direct responses; cross (optional): cross[0] right -> left, cross[1] left -> right
+static PadifierConv::IRSet* makeSet(const PadifierConv::Setups& setups, const std::vector<float> h[2],
+                                    const std::vector<float>* cross = nullptr)
+{
+    const float* hp[2][2] = { { h[0].data(), cross ? cross[1].data() : nullptr },
+                              { cross ? cross[0].data() : nullptr, h[1].data() } };
+    return new PadifierConv::IRSet(setups, hp, static_cast<int>(h[0].size()));
+}
+
 static EngineRun runEngine(const double fs, const std::vector<float> h[2], const std::vector<float> x[2],
-                           const std::vector<float>* h2 = nullptr, const size_t offerAt = 0)
+                           const std::vector<float>* h2 = nullptr, const size_t offerAt = 0,
+                           const std::vector<float>* cross = nullptr)
 {
     PadifierConv::Setups setups(PadifierConv::kHeadBlock, PadifierConv::tailBlock(fs));
     PadifierConv::Engine e;
@@ -89,8 +99,7 @@ static EngineRun runEngine(const double fs, const std::vector<float> h[2], const
     if (h2)
         maxLen = std::max(maxLen, h2[0].size());
     e.configure(&setups, static_cast<int>(maxLen));
-    const float* hp[2] = { h[0].data(), h[1].data() };
-    e.setNow(new PadifierConv::IRSet(setups, hp, static_cast<int>(h[0].size())));
+    e.setNow(makeSet(setups, h, cross));
     EngineRun r;
     const size_t N = x[0].size();
     for (int c = 0; c < 2; ++c)
@@ -104,8 +113,7 @@ static EngineRun runEngine(const double fs, const std::vector<float> h[2], const
     {
         if (h2 && !offered && n >= offerAt)
         {
-            const float* h2p[2] = { h2[0].data(), h2[1].data() };
-            e.offer(new PadifierConv::IRSet(setups, h2p, static_cast<int>(h2[0].size())));
+            e.offer(makeSet(setups, h2));
             offered = true;
         }
         size_t f = std::min<size_t>(kSizes[k++ % 5], N - n);
@@ -177,6 +185,29 @@ static void testConvolver()
     }
 }
 
+static void testCross()
+{
+    for (const double fs : { 48000.0, 96000.0 })
+    {
+        const int M = PadifierConv::tailBlock(fs);
+        const int L = 3 * M + 17;
+        std::vector<float> h[2] = { randomSignal(L, 41), randomSignal(L, 42) };
+        std::vector<float> cross[2] = { randomSignal(L, 43), randomSignal(L, 44) };
+        const size_t N = static_cast<size_t>(L) + 3 * M + 1000;
+        std::vector<float> x[2] = { randomSignal(N, 45), randomSignal(N, 46) };
+        const EngineRun r = runEngine(fs, h, x, nullptr, 0, cross);
+        double worst = 0.0, peak;
+        for (int c = 0; c < 2; ++c)
+            worst = std::max(worst, convolutionError(r.wet[c], N, [&](size_t t) {
+                return direct(x[c], h[c], t) + direct(x[1 - c], cross[c], t);
+            }, peak));
+        char what[160];
+        std::snprintf(what, sizeof(what), "%.0f kHz, cross responses: each output = both inputs convolved (error %.2e, < 1e-5)",
+                      fs / 1000.0, worst);
+        check(worst < 1e-5, what);
+    }
+}
+
 static void testChange()
 {
     std::printf("2. Change of response\n");
@@ -216,108 +247,6 @@ static void testChange()
     check(worst[0] < 1e-5, what);
 }
 
-static void testImpulseResponse()
-{
-    std::printf("3. Impulse response\n");
-    PadifierIR::Settings s;
-    s.fs = 48000.0;
-    s.length = 3.0;
-    s.swell = 0.25;
-    s.decayDb = -30.0;
-    s.seed = 1;
-    for (int pink = 0; pink < 2; ++pink)
-    {
-        s.pink = pink == 1;
-        std::vector<float> a, b, r, other;
-        PadifierIR::generate(s, 0, a);
-        PadifierIR::generate(s, 0, b);
-        PadifierIR::generate(s, 1, r);
-        PadifierIR::Settings s2 = s;
-        s2.seed = 2;
-        PadifierIR::generate(s2, 0, other);
-        double e = 0.0, lr = 0.0, el = 0.0, er = 0.0, ao = 0.0, eo = 0.0;
-        for (size_t i = 0; i < a.size(); ++i)
-        {
-            e += static_cast<double>(a[i]) * a[i];
-            lr += static_cast<double>(a[i]) * r[i];
-            er += static_cast<double>(r[i]) * r[i];
-            ao += static_cast<double>(a[i]) * other[i];
-            eo += static_cast<double>(other[i]) * other[i];
-        }
-        el = e;
-        const char* name = s.pink ? "pink" : "white";
-        char what[160];
-        std::snprintf(what, sizeof(what), "%s: %zu samples (3 s at 48 kHz), energy 1 (%.7f), right too (%.7f)", name,
-                      a.size(), e, er);
-        check(a.size() == 144000 && std::fabs(e - 1.0) < 1e-5 && std::fabs(er - 1.0) < 1e-5, what);
-        check(std::memcmp(a.data(), b.data(), sizeof(float) * a.size()) == 0, "same settings: the same bits");
-        const double rho = lr / std::sqrt(el * er), rho2 = ao / std::sqrt(el * eo);
-        std::snprintf(what, sizeof(what), "left / right correlation %.4f, seed 1 / seed 2 %.4f (|.| < 0.05)", rho, rho2);
-        check(std::fabs(rho) < 0.05 && std::fabs(rho2) < 0.05, what);
-
-        // envelope: RMS by windows against the envelope (normalised at its peak); 20 ms windows
-        // for white noise, 100 ms for pink (its low frequencies make short windows fluctuate)
-        const int w = s.pink ? 4800 : 960;
-        double ratioMin = 1e9, ratioMax = 0.0, ref = 0.0;
-        std::vector<double> rms, env;
-        for (size_t i = 0; i + w <= a.size(); i += w)
-        {
-            double q = 0.0;
-            for (int j = 0; j < w; ++j)
-                q += static_cast<double>(a[i + j]) * a[i + j];
-            rms.push_back(std::sqrt(q / w));
-            env.push_back(PadifierIR::envelope(s, (i + 0.5 * w) / s.fs));
-        }
-        for (size_t i = 0; i < rms.size(); ++i)
-            if (env[i] > 0.2)
-                ref = std::max(ref, rms[i] / env[i]);
-        for (size_t i = 0; i < rms.size(); ++i)
-            if (env[i] > 0.05)
-            {
-                ratioMin = std::min(ratioMin, rms[i] / env[i] / ref);
-                ratioMax = std::max(ratioMax, rms[i] / env[i] / ref);
-            }
-        std::snprintf(what, sizeof(what), "envelope: RMS / envelope by %d ms windows within %.2f .. %.2f of its maximum "
-                      "(> 0.6)", s.pink ? 100 : 20, ratioMin, ratioMax);
-        check(ratioMin > 0.6, what);
-    }
-
-    // spectrum of the noise alone: flat envelope, 8 s, power by octave
-    s.length = 8.0;
-    s.swell = 0.0;
-    s.decayDb = 0.0;
-    for (int pink = 0; pink < 2; ++pink)
-    {
-        s.pink = pink == 1;
-        std::vector<float> w;
-        PadifierIR::noise(s, 0, 1 << 18, w);
-        const int nf = 1 << 18;
-        float* buf = static_cast<float*>(pffft_aligned_malloc(sizeof(float) * nf));
-        PFFFT_Setup* setup = pffft_new_setup(nf, PFFFT_REAL);
-        std::memcpy(buf, w.data(), sizeof(float) * nf);
-        pffft_transform_ordered(setup, buf, buf, nullptr, PFFFT_FORWARD);
-        double bands[7];
-        for (int o = 0; o < 7; ++o)
-        {
-            const double f0 = 125.0 * std::pow(2.0, o), f1 = 2.0 * f0;
-            double q = 0.0;
-            for (int k = static_cast<int>(f0 * nf / s.fs); k < static_cast<int>(f1 * nf / s.fs); ++k)
-                q += static_cast<double>(buf[2 * k]) * buf[2 * k] + static_cast<double>(buf[2 * k + 1]) * buf[2 * k + 1];
-            bands[o] = 10.0 * std::log10(q);
-        }
-        pffft_destroy_setup(setup);
-        pffft_aligned_free(buf);
-        double worst = 0.0;
-        const double slope = s.pink ? 0.0 : 10.0 * std::log10(2.0);
-        for (int o = 1; o < 7; ++o)
-            worst = std::max(worst, std::fabs(bands[o] - bands[o - 1] - slope));
-        char what[160];
-        std::snprintf(what, sizeof(what), "%s noise: octaves 125 Hz .. 16 kHz, %+.1f dB per octave within %.2f dB (< 0.75)",
-                      s.pink ? "pink" : "white", slope, worst);
-        check(worst < 0.75, what);
-    }
-}
-
 // ---- the plugin
 
 struct Change {
@@ -328,7 +257,7 @@ struct Change {
 
 static void processPlugin(const float* values, const double sr, const std::vector<float>& L, const std::vector<float>& R,
                           std::vector<float>& oL, std::vector<float>& oR, const std::vector<Change>& changes = {},
-                          float* outs = nullptr, uint32_t* latency = nullptr)
+                          float* outs = nullptr, uint32_t* latency = nullptr, const double tempo = 0.0)
 {
     d_nextSampleRate = sr;
     d_nextBufferSize = 512;
@@ -357,7 +286,16 @@ static void processPlugin(const float* values, const double sr, const std::vecto
             f = std::min(f, changes[c].at - n);
         const float* in[2] = { &L[n], &R[n] };
         float* out[2] = { &oL[n], &oR[n] };
+        if (tempo > 0.0)
+        {
+            TimePosition tp;
+            tp.bbt.valid = true;
+            tp.bbt.beatsPerMinute = tempo;
+            p.setTimePosition(tp);
+        }
         p.run(in, out, static_cast<uint32_t>(f));
+        if (tempo > 0.0 && n == 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));   // the thread rebuilds
         n += f;
     }
     if (outs)
@@ -392,7 +330,7 @@ static std::vector<float> tone(const double hz, const double fs, const size_t n)
 
 static void testPlugin()
 {
-    std::printf("4. Plugin\n");
+    std::printf("3. Plugin\n");
     const double fs = 48000.0;
     const size_t N = 2 * 48000;
     std::vector<float> L = randomSignal(N, 31), R = randomSignal(N, 32), oL, oR;
@@ -441,27 +379,67 @@ static void testPlugin()
     v[kParamLength] = 0.5f;
     processPlugin(v, fs, L, R, oL, oR);
     PadifierIR::Settings s = PadifierIR::fromParams(v, fs);
-    std::vector<float> h[2];
-    PadifierIR::generate(s, 0, h[0]);
-    PadifierIR::generate(s, 1, h[1]);
+    PadifierIR::Response ir = PadifierIR::generate(s);
     double peak;
-    double e = std::max(convolutionError(oL, N, [&](size_t t) { return direct(L, h[0], t); }, peak),
-                        convolutionError(oR, N, [&](size_t t) { return direct(R, h[1], t); }, peak));
+    double e = std::max(convolutionError(oL, N, [&](size_t t) { return direct(L, ir.h[0][0], t); }, peak),
+                        convolutionError(oR, N, [&](size_t t) { return direct(R, ir.h[1][1], t); }, peak));
     char what[200];
     std::snprintf(what, sizeof(what), "mix 100 %%: the convolution with the noise response (error %.2e of the peak)", e);
     check(e < 1e-5, what);
 
+    // with Cross and treatments: each output = both inputs convolved with the responses
+    float vc[kPresetParamCount];
+    std::copy(v, v + kPresetParamCount, vc);
+    vc[kParamCross] = 70.0f;
+    vc[kParamTune] = 2.0f;
+    vc[kParamDamping] = 4.0f;
+    vc[kParamPanDepth] = 50.0f;
+    processPlugin(vc, fs, L, R, oL, oR);
+    const PadifierIR::Response irc = PadifierIR::generate(PadifierIR::fromParams(vc, fs));
+    e = std::max(convolutionError(oL, N, [&](size_t t) { return direct(L, irc.h[0][0], t) + direct(R, irc.h[1][0], t); }, peak),
+                 convolutionError(oR, N, [&](size_t t) { return direct(R, irc.h[1][1], t) + direct(L, irc.h[0][1], t); }, peak));
+    std::snprintf(what, sizeof(what), "cross 70 %%, chord, damping, motion: both inputs convolved (error %.2e of the peak)", e);
+    check(irc.cross && e < 1e-5, what);
+
+    // rhythm on, host at 90 BPM (the response was built at 120 by activate): rebuilt for 90
+    vc[kParamCross] = 0.0f;
+    vc[kParamTune] = 0.0f;
+    vc[kParamRhythm] = 4.0f;   // 1/8
+    float outs[kParamCount];
+    processPlugin(vc, fs, L, R, oL, oR, {}, outs, nullptr, 90.0);
+    const PadifierIR::Response irt = PadifierIR::generate(PadifierIR::fromParams(vc, fs, 90.0));
+    double err = 0.0, pk = 0.0;
+    for (size_t t = 48000; t + 256 < N; t += 3)
+    {
+        const double y = direct(L, irt.h[0][0], t);
+        pk = std::max(pk, std::fabs(y));
+        err = std::max(err, std::fabs(oL[t + 256] - y));
+    }
+    std::snprintf(what, sizeof(what), "rhythm 1/8, host at 90 BPM: rebuilt for 90 (error %.2e of the peak), tempo shown %.0f",
+                  err / pk, outs[kParamTempo]);
+    check(err / pk < 1e-5 && outs[kParamTempo] == 90.0f, what);
+
+    // pre-delay 10 ms: the wet signal 480 samples later, exactly (set before the start)
+    neutral(vc);
+    std::vector<float> pL, pR;
+    processPlugin(vc, fs, L, R, pL, pR);
+    vc[kParamPredelay] = 10.0f;
+    processPlugin(vc, fs, L, R, oL, oR);
+    bool shifted = true;
+    for (size_t t = 0; t < N; ++t)
+        shifted = shifted && oL[t] == (t >= 480 ? pL[t - 480] : 0.0f) && oR[t] == (t >= 480 ? pR[t - 480] : 0.0f);
+    check(shifted, "pre-delay 10 ms: the pad 480 samples later, exactly");
+
     // change of length at 0.5 s, rebuilt by the thread: the new response 1 s later
     PadifierIR::Settings s2 = s;
     s2.length = 0.3;
-    std::vector<float> h2[2];
-    PadifierIR::generate(s2, 0, h2[0]);
-    PadifierIR::generate(s2, 1, h2[1]);
+    const PadifierIR::Response ir2 = PadifierIR::generate(s2);
     processPlugin(v, fs, L, R, oL, oR, { { 24000, kParamLength, 0.3f } });
-    double err = 0.0, pk = 0.0;
+    err = 0.0;
+    pk = 0.0;
     for (size_t t = 72000; t + 256 < N; t += 3)
     {
-        const double y = direct(L, h2[0], t);
+        const double y = direct(L, ir2.h[0][0], t);
         pk = std::max(pk, std::fabs(y));
         err = std::max(err, std::fabs(oL[t + 256] - y));
     }
@@ -534,14 +512,15 @@ static void testPlugin()
 
 static void benchmark()
 {
-    std::printf("5. Cost (one core, per second of stereo audio, blocks of 256)\n");
+    std::printf("4. Cost (one core, per second of stereo audio, blocks of 256)\n");
     const double rates[] = { 48000.0, 96000.0, 192000.0 };
     for (const double fs : rates)
-        for (const float length : { 3.0f, 10.0f })
+        for (const float length : { 3.0f, 10.0f, -10.0f })   // -10: 10 s with Cross
         {
             float v[kPresetParamCount];
             neutral(v);
-            v[kParamLength] = length;
+            v[kParamLength] = std::fabs(length);
+            v[kParamCross] = length < 0.0f ? 100.0f : 0.0f;
             d_nextSampleRate = fs;
             d_nextBufferSize = 512;
             PluginExporter p(nullptr, nullptr, nullptr, nullptr);
@@ -558,8 +537,8 @@ static void benchmark()
                 p.run(in, out, 256);
             }
             const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            std::printf("  %3.0f kHz, %4.1f s: %.1f ms per second of audio (%.2f %% of a core)\n", fs / 1000.0, length,
-                        1000.0 * s / 5.0, 100.0 * s / 5.0);
+            std::printf("  %3.0f kHz, %4.1f s%s: %.1f ms per second of audio (%.2f %% of a core)\n", fs / 1000.0, std::fabs(length),
+                        length < 0.0f ? ", cross" : "       ", 1000.0 * s / 5.0, 100.0 * s / 5.0);
             p.deactivate();
         }
 }
@@ -567,8 +546,8 @@ static void benchmark()
 int main(int argc, char** argv)
 {
     testConvolver();
+    testCross();
     testChange();
-    testImpulseResponse();
     testPlugin();
     if (argc > 1 && std::strcmp(argv[1], "--bench") == 0)
         benchmark();

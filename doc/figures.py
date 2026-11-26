@@ -46,6 +46,18 @@ TEXT = {
     "input_notes": ("entrée : deux notes brèves (220 et 330 Hz)", "input: two short notes (220 and 330 Hz)"),
     "output_pad": ("sortie, pad seul (Default : bruit rose, 3 s, Swell 25 %, Decay −30 dB)",
                    "output, pad only (Default: pink noise, 3 s, Swell 25 %, Decay −30 dB)"),
+    "output_chord": ("sortie, pad seul (Chord pad : accord ré mineur 7, résonance 60 %)",
+                     "output, pad only (Chord pad: D minor 7 chord, resonance 60 %)"),
+    "colour": ("Colour %+d dB/oct", "Colour %+d dB/oct"),
+    "t_damping": ("Damping 6 dB/oct, Bloom −60 %", "Damping 6 dB/oct, Bloom −60 %"),
+    "t_chord": ("Chord ré min7, Resonance 60 %, Vibrato 0,5 demi-ton", "Chord D min7, Resonance 60 %, Vibrato 0.5 st"),
+    "t_rhythm": ("Rhythm 1/8 à 120 BPM, Duty 40 %", "Rhythm 1/8 at 120 BPM, Duty 40 %"),
+    "t_density": ("Density 40 impulsions/s", "Density 40 impulses/s"),
+    "level_db": ("niveau (dB)", "level (dB)"),
+    "left": ("sortie gauche", "left output"),
+    "right": ("sortie droite", "right output"),
+    "pan_title": ("Pan depth 100 %, Pan rate 1 Hz (enveloppe plate, moyenne sur 20 ms)",
+                  "Pan depth 100 %, Pan rate 1 Hz (flat envelope, mean over 20 ms)"),
 }
 
 
@@ -81,11 +93,22 @@ def build_tool():
 IR_TOOL = build_tool()
 
 
-def ir(length=3.0, swell=25.0, decay=-30.0, seed=1, pink=1, fs=FS):
-    """impulse response of the plugin: array (N, 2)"""
-    out = subprocess.run([IR_TOOL, str(fs), str(length), str(swell), str(decay), str(seed), str(pink)],
-                         check=True, capture_output=True).stdout
-    return np.frombuffer(out, dtype=np.float32).reshape(-1, 2).astype(float)
+def ir(fs=FS, **settings):
+    """impulse responses of the plugin, settings by parameter symbol (defaults otherwise):
+    array (N, 4): left -> left, right -> right, right -> left, left -> right"""
+    args = [IR_TOOL, str(fs)] + ["%s=%s" % (k, v) for k, v in settings.items()]
+    out = subprocess.run(args, check=True, capture_output=True).stdout
+    return np.frombuffer(out, dtype=np.float32).reshape(-1, 4).astype(float)
+
+
+def stft_db(h, n=2048, hop=256):
+    """level of h by frame and frequency (Hann), dB; times and frequencies"""
+    w = np.hanning(n)
+    frames = np.array([h[i:i + n] * w for i in range(0, len(h) - n, hop)])
+    p = np.abs(np.fft.rfft(frames, axis=1)) ** 2
+    t = (np.arange(len(frames)) * hop + n / 2) / FS
+    f = np.fft.rfftfreq(n, 1 / FS)
+    return t, f, 10 * np.log10(np.maximum(p, 1e-30)).T
 
 
 def envelope(t, length, swell, decay_db):
@@ -127,7 +150,7 @@ def smooth_octave(f, p, fraction=6):
 def fig_reponse():
     fig, axes = plt.subplots(2, 1, figsize=(6.6, 4.2), sharex=True)
     for ax, pink in zip(axes, (0, 1)):
-        h = ir(pink=pink)[:, 0]
+        h = ir(colour=-3 if pink else 0)[:, 0]
         t = np.arange(len(h)) / FS
         e = envelope(t, 3.0, 0.25, -30.0)
         k = np.sqrt(np.sum(h ** 2) / np.sum(e ** 2))
@@ -162,25 +185,70 @@ def fig_enveloppes():
 
 
 def fig_spectre():
-    fig, ax = plt.subplots(figsize=(6.6, 2.8))
-    for pink, c, name in ((0, GREY, tr("white")), (1, VIOLET, tr("pink"))):
-        h = ir(length=4.0, swell=0, decay=0, pink=pink)
+    fig, ax = plt.subplots(figsize=(6.6, 2.9))
+    for c, colour in zip((ROSE, VIOLET, GREY, AMBER), (-6, -3, 0, 3)):
+        h = ir(length=4.0, swell=0, decay=0, colour=colour)
         p = 0.5 * (np.abs(np.fft.rfft(h[:, 0])) ** 2 + np.abs(np.fft.rfft(h[:, 1])) ** 2)
         f = np.fft.rfftfreq(len(h), 1 / FS)
         sel = (f >= 15) & (f <= 22000)
         ps = smooth_octave(f[sel], p[sel])
         ref = np.interp(1000, f[sel], ps)
-        ax.semilogx(f[sel], 10 * np.log10(ps / ref), color=c, lw=1.4, label=name + tr("measured"))
-        if pink:
+        ax.semilogx(f[sel], 10 * np.log10(ps / ref), color=c, lw=1.3, label=tr("colour") % colour)
+        if colour == -3:
             filt = butterworth2(f[sel], 80, True) * butterworth2(f[sel], 8000, False)
-            ax.semilogx(f[sel], 10 * np.log10(ps / ref * filt), color=AMBER, lw=1.2, ls="--",
+            ax.semilogx(f[sel], 10 * np.log10(ps / ref * filt), color=DARK, lw=1.0, ls="--",
                         label=tr("pink_filtered"))
     ax.set_xlim(15, 22000)
-    ax.set_ylim(-36, 24)
+    ax.set_ylim(-36, 48)
     ax.set_xlabel(tr("frequency"))
     ax.set_ylabel(tr("db_1k"))
-    ax.legend(fontsize=7.5, loc="upper right")
+    ax.legend(fontsize=7, loc="upper center", ncol=3)
     save(fig, "fig_spectre.pdf")
+
+
+def fig_traitements():
+    """time-frequency maps of responses with the treatments of the noise"""
+    cases = (("t_damping", dict(colour=0, length=4, swell=30, decay=-24, damping=6, bloom=-60)),
+             ("t_chord", dict(colour=0, length=4, swell=10, decay=-12, tune=2, note=50, chord=6, resonance=60,
+                              lforate=0.5, lfopitch=0.5)),
+             ("t_rhythm", dict(colour=0, length=3, swell=5, decay=-24, rhythm=4, duty=40)),
+             ("t_density", dict(colour=0, length=3, swell=5, decay=-24, density=40)))
+    fig, axes = plt.subplots(2, 2, figsize=(6.6, 5.0), sharey=True)
+    for ax, (key, settings) in zip(axes.flat, cases):
+        h = ir(**settings)[:, 0]
+        t, f, d = stft_db(h)
+        sel = (f >= 20) & (f <= 20000)
+        d = d[sel] - d[sel].max()
+        ax.grid(False)
+        m = ax.pcolormesh(t, f[sel], d, vmin=-60, vmax=0, cmap="magma", shading="auto", rasterized=True)
+        ax.set_yscale("log")
+        ax.set_ylim(40, 20000)
+        ax.set_title(tr(key), fontsize=8.5, loc="left")
+        ax.grid(False)
+    for ax in axes[1]:
+        ax.set_xlabel(tr("time"))
+    for ax in axes[:, 0]:
+        ax.set_ylabel(tr("frequency"))
+    fig.colorbar(m, ax=axes, shrink=0.8, label=tr("level_db"))
+    fig.savefig(os.path.join(HERE, "fig_traitements.pdf" if LANG == "fr" else "fig_traitements_%s.pdf" % LANG))
+    plt.close(fig)
+
+
+def fig_stereo():
+    h = ir(length=3, swell=0, decay=0, pandepth=100, panrate=1)
+    n = int(0.02 * FS)
+    fig, ax = plt.subplots(figsize=(6.6, 2.2))
+    for col, c, key in ((0, VIOLET, "left"), (1, AMBER, "right")):
+        e = np.convolve(h[:, col] ** 2, np.ones(n) / n, mode="same")
+        t = np.arange(len(e)) / FS
+        ax.plot(t, 10 * np.log10(np.maximum(e, 1e-30) / np.mean(e)), color=c, lw=1.2, label=tr(key))
+    ax.set_ylim(-30, 8)
+    ax.set_xlim(0, 3)
+    ax.set_xlabel(tr("time"))
+    ax.set_ylabel(tr("level_db"))
+    ax.set_title(tr("pan_title"), fontsize=8.5, loc="left")
+    ax.legend(fontsize=7.5, loc="lower right", ncol=2)
+    save(fig, "fig_stereo.pdf")
 
 
 def fig_mix():
@@ -209,18 +277,22 @@ def fig_pad():
         on = tt >= 0
         note = sum(np.sin(2 * np.pi * k * f0 * tt) / k for k in range(1, 9))
         x[on] += 0.3 * note[on] * np.exp(-tt[on] / 0.12)
-    h = ir()[:, 0]
-    nf = 1 << int(np.ceil(np.log2(n + len(h))))
-    y = np.fft.irfft(np.fft.rfft(x, nf) * np.fft.rfft(h, nf), nf)[:n]
-    fig, axes = plt.subplots(2, 1, figsize=(6.6, 4.4), sharex=True)
+    def convolve(h):
+        nf = 1 << int(np.ceil(np.log2(n + len(h))))
+        return np.fft.irfft(np.fft.rfft(x, nf) * np.fft.rfft(h, nf), nf)[:n]
+    y = convolve(ir()[:, 0])
+    z = convolve(ir(length=6, swell=45, decay=-18, tune=2, note=50, chord=6, resonance=60, lforate=0.2,
+                    lfopitch=0.15)[:, 0])
+    fig, axes = plt.subplots(3, 1, figsize=(6.6, 6.2), sharex=True)
     for ax, sig, name in ((axes[0], x, tr("input_notes")),
-                          (axes[1], y, tr("output_pad"))):
+                          (axes[1], y, tr("output_pad")),
+                          (axes[2], z, tr("output_chord"))):
         ax.specgram(sig + 1e-9 * np.random.default_rng(0).standard_normal(len(sig)), NFFT=2048, Fs=FS, noverlap=1536, cmap="magma", vmin=-110, vmax=-20, rasterized=True)
         ax.set_ylim(0, 3000)
         ax.set_ylabel(tr("frequency"))
         ax.set_title(name, fontsize=9, loc="left")
         ax.grid(False)
-    axes[1].set_xlabel(tr("time"))
+    axes[2].set_xlabel(tr("time"))
     save(fig, "fig_pad.pdf")
 
 
@@ -231,4 +303,6 @@ if __name__ == "__main__":
         fig_spectre()
         fig_mix()
         fig_pad()
+        fig_traitements()
+        fig_stereo()
     print("figures written in", HERE)

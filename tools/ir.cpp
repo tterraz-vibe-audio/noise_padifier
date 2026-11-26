@@ -1,12 +1,15 @@
 /*
- * Noise Padifier - impulse response of the plugin (plugin/NoiseIR.hpp), for the figures of the
+ * Noise Padifier - impulse responses of the plugin (plugin/NoiseIR.hpp), for the figures of the
  * manual (doc/figures.py builds and calls it).
  *
  *   gcc -O2 -c plugin/pffft/pffft.c -o build/pffft.o
  *   g++ -O2 -std=gnu++17 -Iplugin tools/ir.cpp build/pffft.o -o build/ir
- *   ./build/ir SR LENGTH SWELL_PERCENT DECAY_DB SEED PINK > ir.f32
+ *   ./build/ir SR [symbol=value ...] > ir.f32
  *
- * Output: interleaved L, R as raw 32-bit floats, unit energy per channel.
+ * Settings: symbols of the parameters (colour, length, swell, decay, seed, density, tune, note,
+ * chord, resonance, damping, bloom, lforate, lfopitch, lfotone, rhythm, duty, panrate, pandepth,
+ * cross) and tempo; the others keep their defaults.
+ * Output: raw 32-bit floats, interleaved L->L, R->R, R->L, L->R (the last two 0 without Cross).
  *
  * Copyright (C) 2026 Padifier authors
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -15,31 +18,63 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <string>
 #include <vector>
+
+static const struct { const char* key; int param; } kKeys[] = {
+    { "colour", kParamColour }, { "length", kParamLength }, { "swell", kParamSwell }, { "decay", kParamDecay },
+    { "seed", kParamSeed }, { "density", kParamDensity }, { "tune", kParamTune }, { "note", kParamNote },
+    { "chord", kParamChord }, { "resonance", kParamResonance }, { "damping", kParamDamping },
+    { "bloom", kParamBloom }, { "lforate", kParamLfoRate }, { "lfopitch", kParamLfoPitch },
+    { "lfotone", kParamLfoTone }, { "rhythm", kParamRhythm }, { "duty", kParamDuty },
+    { "panrate", kParamPanRate }, { "pandepth", kParamPanDepth }, { "cross", kParamCross },
+};
 
 int main(int argc, char** argv)
 {
-    if (argc != 7)
+    if (argc < 2)
     {
-        std::fprintf(stderr, "usage: ir SR LENGTH SWELL_PERCENT DECAY_DB SEED PINK\n");
+        std::fprintf(stderr, "usage: ir SR [symbol=value ...]\n");
         return 1;
     }
-    float p[kIRParamCount];
-    p[kParamLength] = static_cast<float>(std::atof(argv[2]));
-    p[kParamSwell] = static_cast<float>(std::atof(argv[3]));
-    p[kParamDecay] = static_cast<float>(std::atof(argv[4]));
-    p[kParamSeed] = static_cast<float>(std::atof(argv[5]));
-    p[kParamNoise] = static_cast<float>(std::atof(argv[6]));
-    const PadifierIR::Settings s = PadifierIR::fromParams(p, std::atof(argv[1]));
-    std::vector<float> h[2];
-    PadifierIR::generate(s, 0, h[0]);
-    PadifierIR::generate(s, 1, h[1]);
-    std::vector<float> out(2 * h[0].size());
-    for (size_t i = 0; i < h[0].size(); ++i)
+    float p[kParamFirstOutput];
+    for (int i = 0; i < kParamFirstOutput; ++i)
+        p[i] = kPadifierRanges[i].def;
+    double tempo = kDefaultTempo;
+    for (int a = 2; a < argc; ++a)
     {
-        out[2 * i] = h[0][i];
-        out[2 * i + 1] = h[1][i];
+        const char* const eq = std::strchr(argv[a], '=');
+        bool known = false;
+        if (eq != nullptr)
+        {
+            const std::string key(argv[a], static_cast<size_t>(eq - argv[a]));
+            if (key == "tempo")
+            {
+                tempo = std::atof(eq + 1);
+                known = true;
+            }
+            for (const auto& k : kKeys)
+                if (key == k.key)
+                {
+                    p[k.param] = static_cast<float>(std::atof(eq + 1));
+                    known = true;
+                }
+        }
+        if (!known)
+        {
+            std::fprintf(stderr, "unknown setting: %s\n", argv[a]);
+            return 1;
+        }
     }
+    const PadifierIR::Settings s = PadifierIR::fromParams(p, std::atof(argv[1]), tempo);
+    const PadifierIR::Response r = PadifierIR::generate(s);
+    std::vector<float> out(4 * static_cast<size_t>(r.length), 0.0f);
+    const std::vector<float>* h[4] = { &r.h[0][0], &r.h[1][1], &r.h[1][0], &r.h[0][1] };
+    for (int k = 0; k < 4; ++k)
+        if (!h[k]->empty())
+            for (int i = 0; i < r.length; ++i)
+                out[4 * static_cast<size_t>(i) + k] = (*h[k])[i];
     std::fwrite(out.data(), sizeof(float), out.size(), stdout);
     return 0;
 }

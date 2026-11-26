@@ -33,7 +33,7 @@
 
 \title{\textsf{NOISE} \textcolor{violet}{\textbf{PADIFIER}}\\[4pt]
 \large User manual and description of the algorithm}
-\author{Version 1.0.1}
+\author{Version 1.1.0}
 \date{}
 
 \begin{document}
@@ -51,23 +51,29 @@
 \section{Overview}
 
 Noise Padifier turns any sound into a pad. The signal is convolved with an impulse response made
-of \textbf{white or pink noise} under an adjustable \textbf{envelope}, 0.1 to 10\,s long: every
-note, every attack, is smeared over the whole length of that response. Since noise contains every
-frequency, the timbre of the source is kept (its harmonics stay where they are) but its shape in
-time is gone: a short note becomes a sustained sound that rises and dies away along the envelope
+of \textbf{noise} under an adjustable \textbf{envelope}, 0.1 to 10\,s long: every note, every
+attack, is smeared over the whole length of that response. Since noise contains every frequency,
+the timbre of the source is kept (its harmonics stay where they are) but its shape in time is
+gone: a short note becomes a sustained sound that rises and dies away along the envelope
 (figure~\ref{fig:pad}).
+
+The noise itself is shaped: its colour (from brown to violet), its density (from smooth noise to a
+cloud of grains), a tuning on a note or a chord by comb filters, an envelope that depends on
+frequency (highs that die sooner, lows that bloom later), an LFO, a rhythm on the tempo, a stereo
+motion and a true crossed stereo. All these treatments act \textbf{along the response}: they are
+computed once, when the response is built, and cost nothing during playback.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig_pad_en.pdf}
-\caption{Two short notes (top) and what the Default preset makes of them, pad only (bottom): the
-harmonics are kept, each note now lasts 3\,s, rises in 0.75\,s, then decays.}
+\caption{Two short notes (top), what the Default preset makes of them (middle: each note lasts
+3\,s, rises in 0.75\,s, then decays), and the Chord pad preset (bottom: the pad is tuned to a
+D minor 7 chord).}
 \label{fig:pad}
 \end{figure}
 
-The two channels are convolved with two different noises: even a mono source comes out wide.
-Around the convolution: low cut and high cut on the pad, stereo width, mix with the dry sound,
-output gain, presets, A/B comparison.
+Around the convolution: pre-delay, low cut and high cut on the pad, stereo width, mix with the dry
+sound, output gain, presets, A/B comparison.
 
 \paragraph{Formats.} VST3 and CLAP for 64-bit Windows; VST3, CLAP and LV2 for Linux. The plugin is
 stereo (two inputs, two outputs). Its \textbf{latency is 256 samples} (5.3\,ms at 48\,kHz),
@@ -80,7 +86,7 @@ BSD-like).
 % ==============================================================================================
 \section{Installation}
 
-\paragraph{Windows.} Run the installer \texttt{Noise-Padifier-1.0.1-setup.exe}. It installs the
+\paragraph{Windows.} Run the installer \texttt{Noise-Padifier-1.1.0-setup.exe}. It installs the
 VST3 (required) and, if ticked, the CLAP and the user manuals (English and French), then adds an
 uninstaller (``Apps and features''). By hand, copy:
 \begin{itemize}
@@ -103,24 +109,27 @@ the user in place (section~\ref{sec:files}).
   Mix 50\,\%). \textbf{On an auxiliary send}: choose \ctl{Send (100 \% wet)}, which returns the
   pad only.
 \item Set the length of the pad with \ctl{LENGTH}, its rise with \ctl{SWELL} and its end with
-  \ctl{DECAY}; the curve at the bottom left shows the resulting envelope.
-\item Choose the colour: \ctl{PINK} (warm, full) or \ctl{WHITE} (bright, airy); refine with
-  \ctl{LOW CUT} and \ctl{HIGH CUT}.
-\item Dose with \ctl{MIX}, widen with \ctl{WIDTH}. If you do not like the grain of the noise,
-  try another value of \ctl{SEED}.
+  \ctl{DECAY}; the map at the bottom shows the resulting response.
+\item Choose the colour with \ctl{COLOUR}: to the left darker and warmer, to the right brighter;
+  refine with \ctl{LOW CUT} and \ctl{HIGH CUT}.
+\item For a tuned pad: \ctl{TUNE} on \ctl{COMB} (one note) or \ctl{CHORD} (a chord), then
+  \ctl{NOTE}, \ctl{CHORD} and \ctl{RESONANCE}.
+\item For motion: \ctl{RHYTHM} (pulse on the tempo), \ctl{PAN DEPTH} (stereo swing),
+  \ctl{VIBRATO} or \ctl{LFO TONE}.
+\item Dose with \ctl{MIX}. The presets show each treatment.
 \end{enumerate}
 
-% ==============================================================================================
 \section{The interface}
 
-The window (900 × 600 points, resizable with its proportions kept, sharp on high-density screens)
-reads from left to right in the order of the signal: three numbered sections linked by arrows,
-then two plots at the bottom. Every element has a tooltip on hover; for a knob, its title gives the
-detailed value.
+The window (1200 × 760 points, resizable with its proportions kept, sharp on high-density screens)
+reads from left to right in the order of the signal: five numbered sections linked by arrows,
+then, at the bottom, the map of the response, the spectrum of the pad and the meters. Every element
+has a tooltip on hover; for a knob, its title gives the detailed value. A knob without effect with
+the other settings is drawn faint (for example NOTE when TUNE is OFF); it can still be used.
 
 \begin{center}
-\includegraphics[width=0.8\textwidth]{capture_pearl.png}\\[2pt]
-\small Light theme \ctl{PEARL}, tooltip of the envelope plot.
+\includegraphics[width=0.85\textwidth]{capture_pearl.png}\\[2pt]
+\small Light theme \ctl{PEARL}, Blooming preset, tooltip of BLOOM.
 \end{center}
 
 \subsection{Header}
@@ -139,26 +148,40 @@ detailed value.
 \item[ACTIVE / BYPASSED.] The bypass declared to the host (section~\ref{sec:smoothing}).
 \end{description}
 
-\subsection{Section 1: NOISE}
-The \ctl{WHITE | PINK} selector, a short sentence and a sketch of the spectrum of the noise (from
-20\,Hz to 20\,kHz), then the \ctl{SEED} knob.
+\subsection{Section 1: SOURCE}
+\ctl{COLOUR}, \ctl{DENSITY} and \ctl{SEED}: the noise to start from.
 
-\subsection{Section 2: ENVELOPE}
-\ctl{LENGTH}, \ctl{SWELL} and \ctl{DECAY}. Below: the time of the peak of the envelope (large),
-the end of the response and its level, the number of samples of the response per channel and the
-latency, at the current sample rate.
+\subsection{Section 2: TUNE}
+The \ctl{OFF | COMB | CHORD} selector, then \ctl{NOTE}, \ctl{CHORD}, \ctl{RESONANCE} and
+\ctl{VIBRATO}. Below: the note and its frequency (or the notes of the chord) and the ring time of
+the combs.
 
-\subsection{Section 3: OUTPUT}
-\ctl{MIX}, \ctl{WIDTH}, \ctl{OUTPUT}, \ctl{LOW CUT}, \ctl{HIGH CUT}, then three peak meters:
-\ctl{IN} (input), \ctl{PAD} (pad alone, after the filters and Width, before the mix), \ctl{OUT}
-(output), in dBFS; after a peak, the display falls back with a time constant of 0.25\,s.
+\subsection{Section 3: ENVELOPE}
+\ctl{LENGTH}, \ctl{SWELL}, \ctl{DECAY}, \ctl{DAMPING} and \ctl{BLOOM}. Below: the time of the peak of
+the envelope (at 125\,Hz and 8\,kHz when Bloom is on), the end of the response and its level (and
+at 8\,kHz with Damping), the number of samples per path and the latency.
 
-\subsection{Plots}
+\subsection{Section 4: MOTION}
+Three rows: the LFO (\ctl{LFO RATE}, \ctl{LFO TONE}, and its period), the rhythm (\ctl{RHYTHM},
+\ctl{DUTY}, and the length of a step at the tempo of the host), the stereo (\ctl{PAN RATE},
+\ctl{PAN DEPTH}, \ctl{CROSS}).
+
+\subsection{Section 5: OUTPUT}
+\ctl{MIX}, \ctl{OUTPUT}, \ctl{LOW CUT}, \ctl{HIGH CUT}, \ctl{PRE-DELAY} and \ctl{WIDTH}.
+
+\subsection{Map, spectrum and meters}
 \begin{itemize}
-\item on the left, the \textbf{envelope} of the response against time (seconds, from 0 to
-  Length; level from 0 to $-60$\dB), the peak dashed;
-\item on the right, the \textbf{spectrum of the pad} (20\,Hz to 20\,kHz): colour of the noise and
-  filters, in dB, the highest point at 0\dB.
+\item on the left, the \textbf{time-frequency map} of the response: time from 0 to Length from
+  left to right, frequency from 20\,Hz to 20\,kHz from bottom to top, level in colour (0 to
+  $-48$\dB, scale on the left). It shows the envelope, Damping, Bloom, LFO TONE and the gate of
+  RHYTHM; the light lines are the notes of the combs (harmonics with COMB, the notes of the chord
+  and two harmonics with CHORD), with their vibrato; dashed, the peak of the envelope. The colour
+  of the noise is not on it: it is on the spectrum;
+\item on the right, the \textbf{spectrum of the pad}: colour of the noise and filters, in dB, the
+  highest point at 0\dB;
+\item below, three peak meters: \ctl{IN} (input), \ctl{PAD} (pad alone, after the filters and
+  Width, before the mix), \ctl{OUT} (output), in dBFS; after a peak, the display falls back with a
+  time constant of 0.25\,s.
 \end{itemize}
 
 \subsection{Using the knobs}
@@ -179,83 +202,170 @@ latency, at the current sample rate.
 \toprule
 Setting & Range & Default & Role \\
 \midrule
-Noise & White, Pink & Pink & colour of the noise \\
+\multicolumn{4}{@{}l}{\textsf{1 SOURCE}} \\
+Colour & $-6$--+6\dB/oct & $-3$ & slope of the spectrum of the noise ($-3$: pink) \\
+Density & 10--10\,000 /s & smooth & impulses per second (at the maximum: smooth noise) \\
 Seed & 1--99 & 1 & draw of the noise \\
+\multicolumn{4}{@{}l}{\textsf{2 TUNE}} \\
+Tune & off, comb, chord & off & comb on the note, or combs on a chord \\
+Note & C1--C7 & A3 & note of the comb, root of the chord \\
+Chord & 9 chords & major & kind of chord \\
+Resonance & 0--100\,\% & 50\,\% & ring time of the combs (20\,ms to 5\,s) \\
+Vibrato & 0--12 semitones & 0 & depth of the LFO on the note \\
+\multicolumn{4}{@{}l}{\textsf{3 ENVELOPE}} \\
 Length & 0.1--10\,s & 3\,s & length of the response \\
 Swell & 0--100\,\% & 25\,\% & rise of the envelope, as a part of the length \\
 Decay & $-60$--0\dB & $-30$\dB & level of the envelope at the end \\
+Damping & 0--12\dB/oct & 0 & loss of the highs at the end \\
+Bloom & $-100$--+100\,\% & 0 & shift of the peak with frequency \\
+\multicolumn{4}{@{}l}{\textsf{4 MOTION}} \\
+LFO rate & 0.05--10\,Hz & 0.5\,Hz & rate of the LFO (vibrato, colour) \\
+LFO tone & 0--6\dB/oct & 0 & depth of the LFO on the colour \\
+Rhythm & off, 1/1--1/32 & off & gate on the tempo (dotted, triplets) \\
+Duty & 5--100\,\% & 50\,\% & open part of each step \\
+Pan rate & 0.05--10\,Hz & 0.3\,Hz & rate of the stereo motion \\
+Pan depth & 0--100\,\% & 0 & depth of the stereo motion \\
+Cross & 0--100\,\% & 0 & true stereo: left-right crossings \\
+\multicolumn{4}{@{}l}{\textsf{5 OUTPUT}} \\
 Mix & 0--100\,\% & 50\,\% & part of the pad (constant power) \\
-Width & 0--200\,\% & 100\,\% & stereo width of the pad \\
+Output & $-24$--+12\dB & 0\dB & gain of the whole output \\
 Low cut & 20\,Hz (off)--1\,kHz & off & 12\dB/octave high-pass on the pad \\
 High cut & 1--20\,kHz (off) & off & 12\dB/octave low-pass on the pad \\
-Output & $-24$--+12\dB & 0\dB & gain of the whole output \\
+Pre-delay & 0--500\,ms & 0 & delay of the pad \\
+Width & 0--200\,\% & 100\,\% & stereo width of the pad \\
 Bypass & on/off & off & unprocessed (delayed) input, 10\,ms crossfade \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-\paragraph{Noise.} \ctl{WHITE}: white noise, the same energy at every frequency; the pad is
-bright, airy, and the hiss of the noise is more audible in the highs. \ctl{PINK}: pink noise,
-$-3$\dB{} per octave from 20\,Hz up (the same energy per octave); the pad is warmer and fuller,
-close to the balance of a reverb. Figure~\ref{fig:spectrum}.
+\subsection{Source}
+
+\paragraph{Colour.} Slope of the spectrum of the noise, in decibels (of power) per octave: $-6$,
+brown noise, dark and deep; $-3$, pink noise (the same energy per octave), warm and full, close to
+the balance of a reverb; 0, white noise, bright and airy, whose hiss is more audible in the highs;
+$+3$ blue and $+6$ violet, higher and higher. Figure~\ref{fig:spectrum}.
+
+\paragraph{Density.} At the maximum, the noise is smooth (Gaussian). Below, it is a sparse noise
+(velvet noise): one impulse of random sign, at a random place, in each interval of 1/Density
+second. At a few thousand per second it still sounds smooth; at a few tens, each sound is repeated
+as a cloud of distinct grains or echoes.
 
 \paragraph{Seed.} The noise comes from a pseudo-random generator: each value of Seed gives another
-noise, with the same colour and the same envelope. The differences are details (the ``grain'', a
-few frequencies a little more or a little less present); the same value always gives exactly the
-same response, on any computer.
+noise of the same kind. The differences are details (the ``grain'', a few frequencies a little more
+or a little less present); the same value always gives exactly the same response, on any computer.
 
-\paragraph{Length.} Length of the impulse response, hence of the smearing: a few hundred
-milliseconds thicken the sound (smear); several seconds make a pad. The knob is logarithmic.
+\subsection{Tune}
+
+\paragraph{Tune.} \ctl{OFF}: noise only. \ctl{COMB}: the noise goes through a comb filter tuned to
+NOTE; its resonances are the harmonics of the note, and the pad takes the colour of a string or a
+pipe on that note. \ctl{CHORD}: one comb per note of the chord, summed. The convolution creates no
+frequency absent from the input: the pad brings out what the source contains near these notes; a
+rich source (noise, percussion, dense chord) gives a clearly tuned pad, an isolated note far from
+the chord gives little sound.
+
+\paragraph{Note.} Note of the comb, or root of the chord, from C1 (32.7\,Hz) to C7 (2093\,Hz),
+A4 = 440\,Hz.
+
+\paragraph{Chord.} major, minor, sus2, sus4, fifth (fifth and octave), maj7, min7, dom7, octaves
+(three octaves of the note).
+
+\paragraph{Resonance.} Ring time of the combs ($-60$\dB), from 20\,ms at 0\,\% to 5\,s at 100\,\%
+(exponential law): low, a light tint; high, clear, almost sinusoidal notes.
+
+\paragraph{Vibrato.} Depth, in semitones, of the LFO on the note of the combs; its rate is LFO
+RATE. Like every motion, it starts at the attack of each sound (section~\ref{sec:lfo}).
+
+\subsection{Envelope}
+
+\paragraph{Length.} Length of the response, hence of the smearing: a few hundred milliseconds
+thicken the sound (smear); several seconds make a pad. Logarithmic knob.
 
 \paragraph{Swell.} Time of the peak of the envelope, as a percentage of the length. At 0, the pad
-starts with the sound; at 25\,\% of a 3\,s response, it rises for 0.75\,s; at 100\,\%, it rises
-over the whole response and then stops short (a ``reverse reverb'' effect).
+starts with the sound; at 25\,\% of a 3\,s response, it rises for 0.75\,s; at 100\,\%, it rises over
+the whole response and then stops short (a ``reverse reverb'' effect).
 
-\paragraph{Decay.} Level of the envelope at the end of the response, after the peak. The decay is a
+\paragraph{Decay.} Level of the envelope at the end of the response, after the peak, along a
 straight line in decibels: at $-60$\dB, the pad dies away like a reverb; at 0\dB, it stays at the
 same level to the end (a held pad, cut by a fade of 20\,ms at most). Figure~\ref{fig:envelopes}.
 
+\paragraph{Damping.} The highs die sooner than the lows, as in a room: at the end of the response,
+each octave above 250\,Hz loses Damping decibels more than Decay (with 6\dB/oct and Decay
+$-30$\dB, 8\,kHz ends at $-60$\dB). The pad gets darker as it dies away.
+
+\paragraph{Bloom.} The peak of the envelope moves with frequency, by at most half the length over
+four octaves on either side of 1\,kHz: positive, the highs arrive later (the pad opens up);
+negative, the lows arrive later (it warms up).
+
+\subsection{Motion}\label{sec:lfo}
+
+\paragraph{Motion along the response.} The LFO, the rhythm and the stereo motion are written into
+the response: they start at the attack of each sound, not on the time of the song. On spaced
+notes, each one makes the same motion; on dense playing, the motions of the successive notes
+overlap with an offset and soften. A response lasts 10\,s at most: a slow LFO only makes one or two
+cycles per note.
+
+\paragraph{LFO rate, LFO tone.} Rate of the LFO (a sine starting from 0 at the attack), shared by
+the vibrato of the combs and the colour; LFO TONE swings the slope of the spectrum by $\pm$ its
+value: the pad gets brighter and darker.
+
+\paragraph{Rhythm, Duty.} A gate cuts the response into steps of the chosen division (1/1 to 1/32,
+dotted, triplets) at the tempo of the host (120\,BPM if it gives none); each step is open for
+Duty, with edges of 3\,ms at most. With a short Duty, each sound comes back as separate bursts,
+like rhythmic echoes; longer, the pad pulses. A change of tempo makes the response again.
+
+\paragraph{Pan rate, Pan depth.} The pad swings between left and right: at 100\,\%, each side fades
+out in turn (figure~\ref{fig:stereo}).
+
+\paragraph{Cross.} True stereo: besides its direct path, each input reaches the other side through
+a fourth, independent noise. At 0, no crossing (and half the computation); at 100\,\%, as much
+crossed as direct. A source placed on the left then spreads to both sides.
+
+\subsection{Output}
+
 \paragraph{Mix.} Constant-power mix of the dry sound and the pad: pad $= \sin(\frac{\pi}{2}\,m)$,
 dry $= \cos(\frac{\pi}{2}\,m)$, $m$ = Mix / 100 (figure~\ref{fig:mix}). At 50\,\%, both are at
-$-3$\dB; at 100\,\%, only the pad remains (auxiliary send). Since the pad is not correlated with
-the dry sound, the overall level stays roughly constant.
-
-\paragraph{Width.} Stereo width of the pad alone: 0\,\% makes it mono, 100\,\% leaves it as the
-convolution makes it (two independent noises, hence very wide), 200\,\% doubles the difference
-between the channels. The dry sound is not touched.
-
-\paragraph{Low cut, High cut.} Second-order Butterworth filters (12\dB{} per octave) on the pad
-alone. Pink noise brings a lot of low end: Low cut between 60 and 200\,Hz keeps it out of the
-bottom of the mix. High cut softens the pad and removes the high hiss, especially with white noise.
-Both knobs are logarithmic; at their ends (20\,Hz for Low cut, 20\,kHz for High cut, ``off''), the
-filter is removed.
+$-3$\dB; at 100\,\%, only the pad remains (auxiliary send).
 
 \paragraph{Output.} Gain of the whole output (dry and pad), after the mix.
 
-% ==============================================================================================
+\paragraph{Low cut, High cut.} Second-order Butterworth filters (12\dB{} per octave) on the pad
+alone: Low cut between 60 and 200\,Hz keeps the low end of pink and brown noise out of the bottom
+of the mix; High cut softens the pad and removes the high hiss. Logarithmic knobs; at their ends
+(``off''), the filter is removed.
+
+\paragraph{Pre-delay.} Delays the pad, by 0 to 500\,ms: it starts after the dry sound. A change
+crossfades from the old delay to the new one in 30\,ms.
+
+\paragraph{Width.} Stereo width of the pad alone: 0\,\% makes it mono, 100\,\% leaves it as it is,
+200\,\% doubles the difference between the channels.
+
 \section{Presets}\label{sec:presets}
 
 \subsection{Factory presets}
 \begin{center}
 \small
-\begin{tabular}{@{}l l r r r r r r r r@{}}
+\begin{tabularx}{\textwidth}{@{}l X@{}}
 \toprule
-Name & Noise & Length & Swell & Decay & Seed & Low cut & High cut & Width & Mix \\
+Name & Settings (the others at their defaults) \\
 \midrule
-Default           & Pink  & 3   & 25  & $-30$ & 1 & off & off   & 100 & 50 \\
-Soft pad          & Pink  & 4   & 50  & $-24$ & 1 & 80  & 8000  & 120 & 60 \\
-Endless wash      & Pink  & 8   & 40  & $-6$  & 7 & 60  & 12000 & 140 & 70 \\
-Dark cloud        & Pink  & 6   & 60  & $-18$ & 3 & 40  & 3000  & 100 & 60 \\
-Airy halo         & White & 3   & 30  & $-36$ & 5 & 400 & off   & 150 & 35 \\
-Short smear       & White & 0.4 & 20  & $-40$ & 2 & 100 & 14000 & 100 & 30 \\
-Reverse swell     & Pink  & 2   & 100 & 0     & 4 & 60  & 16000 & 120 & 50 \\
-Send (100 \% wet) & Pink  & 3   & 25  & $-30$ & 1 & 60  & off   & 100 & 100 \\
+Default & pink noise, 3\,s, Swell 25\,\%, Decay $-30$\dB, Mix 50\,\% \\
+Soft pad & 4\,s, Swell 50\,\%, Decay $-24$, Damping 3, Low cut 80\,Hz, High cut 8\,kHz, Width 120\,\%, Mix 60\,\% \\
+Endless wash & 8\,s, Swell 40\,\%, Decay $-6$, Cross 40\,\%, Width 140\,\%, Mix 70\,\% \\
+Dark cloud & Colour $-4.5$, 6\,s, Swell 60\,\%, Decay $-18$, Damping 6, High cut 3\,kHz, Mix 60\,\% \\
+Airy halo & white noise, Swell 30\,\%, Decay $-36$, Bloom +50\,\%, Low cut 400\,Hz, Width 150\,\%, Mix 35\,\% \\
+Short smear & white noise, 0.4\,s, Swell 20\,\%, Decay $-40$, Low cut 100\,Hz, Mix 30\,\% \\
+Reverse swell & 2\,s, Swell 100\,\%, Decay 0, Width 120\,\% \\
+Tuned drone & COMB on A2, Resonance 70\,\%, 5\,s, Swell 40\,\%, Decay $-12$, Mix 60\,\% \\
+Chord pad & CHORD min7 on D3, Resonance 60\,\%, Vibrato 0.15, LFO 0.2\,Hz, 6\,s, Width 130\,\%, Mix 60\,\% \\
+Pulse gate & Rhythm 1/8, Duty 40\,\%, Pan depth 60\,\% at 1\,Hz, 4\,s, Swell 10\,\% \\
+Grain cloud & Colour $-1.5$, Density 40 /s, Cross 60\,\%, Width 150\,\%, Mix 45\,\% \\
+Blooming & 5\,s, Swell 35\,\%, Bloom $-60$\,\%, Damping 4, LFO tone 2 at 0.4\,Hz, Mix 55\,\% \\
+Send (100 \% wet) & Mix 100\,\%, Low cut 60\,Hz \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
-Length in seconds, Swell, Width and Mix in \%, Decay in dB, filters in Hz; Output at 0\dB{}
-everywhere. These presets were set from the laws of the settings, \textbf{not by ear}. They are
-also offered to the host (list of programs).
+These presets were set from the laws of the settings, \textbf{not by ear}. They are also offered to
+the host (list of programs).
 
 \subsection{Your presets}
 \begin{description}
@@ -287,23 +397,24 @@ the plugin itself.
 
 \begin{center}
 \begin{tikzpicture}[
-  node distance=4mm and 2.6mm,
+  node distance=4mm and 2.4mm,
   blk/.style={draw=ink, rounded corners=2pt, fill=paper, minimum height=8mm, align=center,
-              font=\scriptsize\sffamily, inner sep=2.5pt},
+              font=\scriptsize\sffamily, inner sep=2.2pt},
   core/.style={blk, fill=violet!12, draw=violet},
   arr/.style={-{Stealth[length=1.8mm]}, ink}]
 \node[blk] (in) {input\\$x_L, x_R$};
-\node[core, right=of in] (conv) {convolution\\$x_L * h_L$, $x_R * h_R$};
-\node[blk, right=of conv] (lc) {Low cut};
+\node[core, right=of in] (conv) {convolution\\$h_{LL}, h_{RR}$ (+ Cross)};
+\node[blk, right=of conv] (pd) {Pre-\\delay};
+\node[blk, right=of pd] (lc) {Low cut};
 \node[blk, right=of lc] (hc) {High cut};
 \node[blk, right=of hc] (wd) {Width};
-\node[blk, right=of wd] (mix) {mix\\Mix};
+\node[blk, right=of wd] (mix) {Mix};
 \node[blk, right=of mix] (out) {Output};
-\node[blk, right=of out] (byp) {Bypass\\(crossfade)};
+\node[blk, right=of out] (byp) {Bypass};
 \node[blk, right=of byp] (s) {output};
-\node[core, above=5mm of conv, xshift=10mm] (ir) {response $h_L, h_R$: noise under an envelope (Noise, Seed, Length, Swell, Decay)};
+\node[core, above=5mm of conv, xshift=22mm] (ir) {responses: shaped noise (Source, Tune, Envelope, Motion), section~\ref{sec:response}};
 \node[blk, below=7mm of lc] (dly) {delay of 256 samples};
-\draw[arr] (in) -- (conv); \draw[arr] (conv) -- (lc); \draw[arr] (lc) -- (hc);
+\draw[arr] (in) -- (conv); \draw[arr] (conv) -- (pd); \draw[arr] (pd) -- (lc); \draw[arr] (lc) -- (hc);
 \draw[arr] (hc) -- (wd); \draw[arr] (wd) -- (mix); \draw[arr] (mix) -- (out);
 \draw[arr] (out) -- (byp); \draw[arr] (byp) -- (s);
 \draw[arr] (ir.south -| conv) -- (conv);
@@ -313,54 +424,66 @@ the plugin itself.
 \end{tikzpicture}
 \end{center}
 
-Each channel is convolved with its own response: left with $h_L$, right with $h_R$ (no
-crossing). The dry sound is delayed by the latency of the convolution, 256 samples, to stay
-aligned with the pad; the bypass returns this same delayed dry sound, so that the latency does not
-change when switching.
+Each output $o$ receives its input convolved with the direct response ($h_{LL}$ on the left,
+$h_{RR}$ on the right) and, with Cross, the other input convolved with a crossed response
+($h_{RL}$, $h_{LR}$). The dry sound is delayed by the latency of the convolution, 256 samples, to
+stay aligned with the pad; the bypass returns this same delayed dry sound, so that the latency does
+not change when switching.
 
-\subsection{The impulse response}\label{sec:response}
+\subsection{The impulse responses}\label{sec:response}
 
-For a channel $c$ (0 left, 1 right), at the sample rate $f_s$:
-\[
-h_c(n) = k_c \; e\!\left(\tfrac{n}{f_s}\right) w_c(n), \qquad n = 0 \ldots N-1, \quad
-N = \mathrm{round}(\text{Length} \cdot f_s).
-\]
+The plugin makes two responses (direct paths), or four with Cross, each of
+$N = \mathrm{round}(\text{Length} \cdot f_s)$ samples, from an independent noise (seed Seed and
+number of the path). Each goes through the following steps.
 
-\paragraph{The noise $w_c$.} Gaussian noise of variance 1: Box-Muller method on the SplitMix64
-generator, seeded from (Seed, $c$). This generator is written in the plugin (not the one of the
-compiler's library): the same seed gives the same samples on Windows and on Linux. For pink noise,
-white noise is drawn over $N_f \geq N$ samples ($N_f$ a power of 2), transformed by FFT, each
-component of frequency $f$ multiplied by $1/\sqrt{\max(f, 20\,\text{Hz})}$ (the DC component set to
-zero), then brought back to time; the first $N$ samples are kept. The power spectrum thus falls by
-3\dB{} per octave above 20\,Hz and stays flat below (figure~\ref{fig:spectrum}).
+\begin{enumerate}
+\item \textbf{Source.} Gaussian noise of variance 1 (Box-Muller method on the SplitMix64 generator,
+  written in the plugin: the same seed gives the same samples on Windows and on Linux); or, if
+  Density is below its maximum, sparse noise: in each interval of $f_s$/Density samples, one
+  impulse of random sign at a random place, of amplitude $\sqrt{f_s/\text{Density}}$ (power 1).
+\item \textbf{Colour.} The spectrum (FFT over the next power of 2) is multiplied by
+  \[ \left(\max(f, 20\,\text{Hz}) / 1\,\text{kHz}\right)^{\text{Colour}/6.02}, \]
+  the DC component set to zero: the power follows the slope Colour in dB per octave
+  (figure~\ref{fig:spectrum}).
+\item \textbf{Combs} (Tune). For each note (one with COMB, those of the chord with CHORD):
+  $y(n) = x(n) + g\, y(n - D)$, $D = f_s / f$ (linear interpolation), $f = f_0 \cdot 2^{\,\text{Vibrato}
+  \cdot \sin(2\pi\, \text{LFO rate}\; t)/12}$, $g = 10^{-3 D / (f_s T_{60})}$ with $T_{60}$ the ring
+  time; the outputs of the combs are summed. The combs run on a noise started $\min(T_{60},
+  5\,\text{s})$ before $t = 0$, so that they ring steadily from the start.
+\item \textbf{Envelope.} Without Damping, Bloom or LFO tone, the envelope $e(t)$ is applied in time
+  (rise $\sin^2$ up to $T_a$ = Swell $\cdot$ Length, then a straight line in dB down to Decay).
+  Otherwise it depends on frequency and is applied by a short-time Fourier transform (square-root
+  Hann windows of 2048 samples at 48\,kHz, overlap of 3/4): for each frame and each frequency, the
+  gain of the envelope with a peak at $T_a(f) = T_a + \text{Bloom} \cdot \frac{L}{2} \cdot u(f)$,
+  $u(f) = \log_2(f / 1\,\text{kHz})/4$ bounded to $[-1, 1]$, an end level $\text{Decay} -
+  \text{Damping} \cdot \max(0, \log_2(f / 250\,\text{Hz}))$, and the colour factor of the LFO
+  $(\max(f, 20) / 1000)^{\,\text{LFO tone} \cdot \sin(2\pi\, \text{LFO rate}\; t)/6.02}$. Then, in
+  both cases, the $\cos^2$ fade over the last $\min(20\,\text{ms}, L/10)$.
+\item \textbf{Rhythm.} Gate of period (length of the division) $\times\, 60$ / tempo, open for Duty
+  of each period from $t = 0$, $\sin^2$ edges of $\min(3\,\text{ms}, \text{open}/4,
+  \text{closed}/4)$.
+\item \textbf{Normalisation.} Energy 1: $\sum_n h(n)^2 = 1$.
+\end{enumerate}
+Then output $o$ is made of the direct path $\times \cos(c\,\pi/4)$ and the crossed path $\times
+\sin(c\,\pi/4)$, $c$ = Cross: an input with independent channels keeps its level. Last, the stereo
+motion multiplies the left output by $\sqrt{2} \cos a$ and the right one by $\sqrt{2} \sin a$,
+$a = \frac{\pi}{4}(1 + \text{Pan depth} \cdot \sin(2\pi\, \text{Pan rate}\; t))$.
 
-\paragraph{The envelope $e(t)$.} With $L$ = Length, $T_a$ = Swell $\cdot L$ and
-$T_f = \min(20\,\text{ms}, L/10)$, $e$ is the product of three terms:
-\begin{align*}
-\text{rise} &: \sin^2\!\left(\tfrac{\pi}{2}\,\tfrac{t}{T_a}\right) \text{ for } t < T_a ;\\
-\text{decay} &: 10^{\,\text{Decay}/20 \;\cdot\; (t - T_a)/(L - T_a)} \text{ for } t \geq T_a ;\\
-\text{final fade} &: \cos^2\!\left(\tfrac{\pi}{2}\,\tfrac{t - (L - T_f)}{T_f}\right) \text{ for } t > L - T_f .
-\end{align*}
-The decay is a straight line in dB, from 0\dB{} at the peak to Decay at the end. The final fade
-keeps the response from ending on a step, which would be heard as a click at the end of every note
-when Decay is close to 0\dB{} or Swell close to 100\,\% (figure~\ref{fig:envelopes}).
+For a broadband input little correlated in time, the pad thus keeps the RMS level of the input,
+whatever the settings. An isolated note, on the other hand, is smeared: its peak falls all the
+more as the response is long, its energy is kept.
 
-\paragraph{The normalisation $k_c$.} Each response is scaled to an energy of 1:
-$\sum_n h_c(n)^2 = 1$. For a broadband input little correlated in time (noise, a dense mix), the
-pad then keeps the RMS level of the input, whatever the length and the envelope. An isolated note,
-on the other hand, is smeared: its peak falls all the more as the response is long, its energy is
-kept. A sustained sine comes out with a gain that varies a little from one frequency to the next
-(the spectrum of a noise is never perfectly smooth: a few dB around the mean); changing Seed moves
-these small deviations.
-
-The two channels have independent noises (measured correlation below 0.01 for 3\,s): the output
-is decorrelated between left and right, hence its width even for a mono source.
+The streams are computed in parallel, in threads of the plugin. A rebuild takes 0.02\,s with the
+default settings; in the worst case (10\,s, a chord of four notes, every treatment, Cross),
+0.26\,s at 48\,kHz and 1.05\,s at 192\,kHz. Each treatment is checked by the tests on the
+responses made, against its law (colour within 0.7\dB{} per octave, damping within 0.8\dB, bloom
+within 0.15\,s, vibrato within 0.4\,Hz\ldots).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig_reponse_en.pdf}
-\caption{Impulse response of the Default preset, left channel, with white and with pink noise,
-and its envelope. Pink noise, rich in lows, wavers more slowly.}
+\caption{Response of the Default preset, left channel, with white and with pink noise, and its
+envelope.}
 \label{fig:response}
 \end{figure}
 
@@ -374,10 +497,26 @@ and its envelope. Pink noise, rich in lows, wavers more slowly.}
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig_spectre_en.pdf}
-\caption{Spectrum of the response (mean of both channels, 4\,s, flat envelope), measured on the
-responses of the plugin and smoothed over a sixth of an octave; dashed, pink noise with Low cut
-80\,Hz and High cut 8\,kHz.}
+\caption{Spectrum of the response against Colour (mean of both channels, 4\,s, flat envelope),
+measured on the responses of the plugin and smoothed over a sixth of an octave; dashed, pink noise
+with Low cut 80\,Hz and High cut 8\,kHz.}
 \label{fig:spectrum}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_traitements_en.pdf}
+\caption{Time-frequency maps of responses of the plugin (white noise): Damping and Bloom (the highs
+arrive early and die soon), chord with vibrato (the harmonics of the four notes waver), rhythmic
+gate, sparse noise (isolated impulses).}
+\label{fig:treatments}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_stereo_en.pdf}
+\caption{Stereo motion: level of the left and right outputs along the response.}
+\label{fig:stereo}
 \end{figure}
 
 \subsection{The convolution}\label{sec:convolution}
@@ -414,10 +553,13 @@ blocks (\emph{uniformly partitioned convolution}, overlap-save, real FFTs of pff
   blocks of 256 before. There is neither a peak of computation nor an extra thread in the audio
   processing.
 \end{itemize}
-Both stages share the spectra of the input already computed (frequency-domain delay lines). The
+Both stages share the spectra of the input already computed (frequency-domain delay lines); with
+Cross, each output adds the products of the crossed responses with the spectra of the other input,
+which doubles the products without any further transform. The
 result is that of the exact convolution, up to the rounding of single-precision computation: the
 tests compare it with a direct convolution in double precision, with a deviation of at most
-$4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample to $5M$ and at 48, 96 and 192\,kHz.
+$4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample to $5M$ and at 48, 96 and 192\,kHz,
+and of $3.5 \cdot 10^{-7}$ with the crossed responses.
 
 \paragraph{Cost.} Measured on one core (blocks of 256, stereo):
 \begin{center}
@@ -426,30 +568,37 @@ $4.4 \cdot 10^{-7}$ of the peak, for responses from 1 sample to $5M$ and at 48, 
 \toprule
 Length & 48\,kHz & 96\,kHz & 192\,kHz \\
 \midrule
-3\,s  & 1.1\,\% & 3.0\,\% & 9.3\,\% \\
-10\,s & 2.4\,\% & 6.1\,\% & 15\,\% \\
+3\,s  & 1.0\,\% & 3.0\,\% & 8.8\,\% \\
+10\,s & 2.2\,\% & 5.4\,\% & 15\,\% \\
+10\,s, Cross & 4.5\,\% & 10\,\% & 25\,\% \\
 \bottomrule
 \end{tabular}
 \end{center}
-The memory used is about 20\,MB at 48\,kHz (response of 10\,s at most, spectra of the input and of
-two responses).
+The treatments of the noise cost nothing during playback: they are in the response. The memory used
+is about 20\,MB at 48\,kHz (40\,MB with Cross); during a rebuild, computing the response briefly
+needs more (up to 340\,MB in the worst case at 192\,kHz).
 
 \subsection{Change of response}\label{sec:change}
 
-Noise, Seed, Length, Swell and Decay define the response: changing one of them means making it
-again (drawing the noise, FFT, cutting into blocks; about 0.1\,s of computation for 10\,s at
-48\,kHz). This work is done in a thread of the plugin, never in the audio processing, which goes
-on with the old response. When the new one is ready, it is taken at the start of a tail block.
-Since the spectra of the input do not depend on the response, the new response has the whole past
-of the signal at once: the pad does not start again from silence. The output goes from the old
-response to the new one by a linear crossfade of $M$ samples (85\,ms at 48\,kHz), then the old one
-is freed, in the thread of the plugin.
+The settings of the SOURCE, TUNE, ENVELOPE and MOTION sections define the response: changing one
+of them means making it again, as does a change of the tempo of the host while RHYTHM is on. A
+setting without effect with the others (NOTE when TUNE is OFF, for example) does not. This work is
+done in a thread of the plugin, never in the audio processing, which goes on with the old response.
+When the new one is ready, it is taken at the start of a tail block. Since the spectra of the input
+do not depend on the response, the new response has the whole past of the signal at once: the pad
+does not start again from silence. The output goes from the old response to the new one by a linear
+crossfade of $M$ samples (85\,ms at 48\,kHz), then the old one is freed, in the thread of the
+plugin.
 
 Turning one of these knobs during playback therefore gives a series of crossfades, without a click,
 with a slight delay. When the plugin is activated (start of playback or of a render), the response
 is built at once: a render always starts with the right response.
 
-\subsection{Width, filters, mix and output}
+\subsection{Pre-delay, width, filters, mix and output}
+
+\paragraph{Pre-delay.} Integer delay of the pad in samples, right after the convolution; a change
+crossfades from the old delay to the new one in 30\,ms, the next change waits for the end of the
+crossfade.
 
 \paragraph{Filters.} Low cut and High cut are second-order Butterworth filters (Robert
 Bristow-Johnson's formulas), in double precision; their frequency is limited to 0.45\,$f_s$.
@@ -492,20 +641,26 @@ computation and gives the host its own state back on return.
 \item[A pad from an instrument.] Soft pad or Endless wash on an auxiliary send, Mix at 100\,\%:
   detached notes become a continuous background. The longer the Length and the closer Decay is to
   0, the steadier the pad.
+\item[A tuned pad.] Tuned drone or Chord pad on a rich source (drums, noise, distorted guitar): the
+  pad takes the note or the chord. Tune NOTE to the key of the song; raise RESONANCE for clearer
+  notes.
 \item[Thickening.] Short smear (0.4\,s) on a voice, a guitar or a snare: the sound gets a dense
   tail, without the space of a reverb.
 \item[Swells.] Reverse swell: each attack rises for 2\,s and then stops short. With a send placed
   a few beats before, the swell leads into the sound.
-\item[Low end.] Pink noise gives a lot of low end: Low cut 60 to 150\,Hz, especially on a send
-  shared by several tracks.
-\item[Hiss.] White noise makes a hiss audible on soft sounds: High cut between 6 and 12\,kHz, or
-  switch to pink noise.
+\item[Rhythm.] Pulse gate: the pad pulses in eighth notes on the tempo; short DUTY for rhythmic
+  echoes, long for breathing.
+\item[Realism.] DAMPING 3 to 6\dB/oct makes the tail more natural; a negative BLOOM gives a pad
+  that warms up as it settles.
+\item[Low end.] Pink and brown noise give a lot of low end: Low cut 60 to 150\,Hz, especially on a
+  send shared by several tracks.
+\item[Hiss.] White or blue noise makes a hiss audible on soft sounds: High cut between 6 and
+  12\,kHz, or a lower colour.
 \item[Texture.] If one frequency stands out too much on a sustained sound, change Seed.
 \item[Mono.] The pad is very wide; check in mono and reduce Width if the mix gets hollow.
 \item[Comparing two settings.] Set A, copy it to B (\ctl{A>B}), change B, then switch A | B.
 \end{description}
 
-% ==============================================================================================
 \section{Files, projects and compatibility}\label{sec:files}
 
 \begin{description}
@@ -519,12 +674,18 @@ computation and gives the host its own state back on return.
   \item Windows: \verb|%APPDATA%\Padifier\|;
   \item Linux: \verb|$XDG_CONFIG_HOME/padifier/|, otherwise \verb|~/.config/padifier/|.
   \end{itemize}
-\item[Format of a preset.] Text, one line \texttt{key=value} per setting (\texttt{noise},
-  \texttt{length}, \texttt{swell}, \texttt{decay}, \texttt{seed}, \texttt{lowcut},
-  \texttt{highcut}, \texttt{width}, \texttt{mix}, \texttt{output}), numbers with a decimal point
-  whatever the language of the system. A missing key takes its default value, a value out of range
-  is brought back within the range, an unknown line is ignored. Copying the file is enough to share
-  a preset.
+\item[Format of a preset.] Text, one line \texttt{key=value} per setting (the symbols of the
+  parameters: \texttt{colour}, \texttt{length}, \texttt{swell}, \texttt{decay}, \texttt{seed},
+  \texttt{density}, \texttt{tune}, \texttt{note}, \texttt{chord}, \texttt{resonance},
+  \texttt{damping}, \texttt{bloom}, \texttt{lforate}, \texttt{lfopitch}, \texttt{lfotone},
+  \texttt{rhythm}, \texttt{duty}, \texttt{panrate}, \texttt{pandepth}, \texttt{cross},
+  \texttt{predelay}, \texttt{lowcut}, \texttt{highcut}, \texttt{width}, \texttt{mix},
+  \texttt{output}), numbers with a decimal point whatever the language of the system. A missing
+  key takes its default value, a value out of range is brought back within the range, an unknown
+  line is ignored. Copying the file is enough to share a preset.
+\item[From 1.0.] The Noise setting (white or pink) became Colour: a project or a preset of 1.0 keeps
+  its other settings, the colour goes back to pink ($-3$) and the new settings to their defaults,
+  so that the sound is that of 1.0 with pink noise.
 \end{description}
 
 % ==============================================================================================
@@ -532,10 +693,13 @@ computation and gives the host its own state back on return.
 \begin{itemize}
 \item Latency of 256 samples: compensated by the host, but audible when playing live through the
   plugin with a very small buffer.
-\item A change of Noise, Seed, Length, Swell or Decay arrives with a slight delay (the time to make
-  the response again); in an offline render faster than real time, an automation of these settings
-  may therefore land a little later than on playback.
-\item Each channel is convolved with its own response, without left-right crossing.
+\item A change of the settings of the response arrives with a slight delay (the time to make it
+  again, up to 1\,s in the worst case at 192\,kHz); in an offline render faster than real time, an
+  automation of these settings may therefore land a little later than on playback.
+\item The motions (LFO, rhythm, stereo) start at the attack of each sound, not on the time of the
+  song.
+\item The convolution creates no frequency: TUNE brings out what the source contains near the
+  notes, it transposes nothing.
 \item The pad has no freeze: it always follows the input.
 \item Typing on the keyboard (values, preset names) depends on the host: some keep the keyboard
   for themselves.

@@ -21,10 +21,11 @@ static void check(const bool ok, const char* const what)
         ++failures;
 }
 
+// the bypass is not saved
 static bool sameValues(const float* const a, const float* const b)
 {
     for (int i = 0; i < kPresetParamCount; ++i)
-        if (a[i] != b[i])
+        if (isPresetParam(i) && a[i] != b[i])
             return false;
     return true;
 }
@@ -48,12 +49,22 @@ int main()
     check(!save("Default", kPadifierPresets[0].values) && !save("soft PAD", kPadifierPresets[0].values),
           "factory names refused");
 
-    const float a[kPresetParamCount] = { 1.0f, 2.8123457f, 33.3f, -27.25f, 12.0f, 143.7f, 7350.5f, 125.0f, 61.5f, -1.75f };
-    check(save("Bright", a), "save");
+    // every parameter away from its default, odd values
+    float a[kPresetParamCount], b[kPresetParamCount];
+    for (int i = 0; i < kPresetParamCount; ++i)
+    {
+        const PadifierRange& q = kPadifierRanges[i];
+        a[i] = q.min + (q.max - q.min) * (0.123457f + 0.031f * i);
+        b[i] = q.min;   // the other end
+    }
+    a[kParamTune] = 2.0f;
+    a[kParamChord] = 6.0f;
+    a[kParamRhythm] = 9.0f;
+    a[kParamBypass] = b[kParamBypass] = 0.0f;
+    check(save("Bright", a), "save (all the parameters of 1.1)");
     float r[kPresetParamCount] = { 0 };
     check(load("Bright", r) && sameValues(a, r), "read back exactly");
 
-    const float b[kPresetParamCount] = { 0, 0.1f, 0, -60, 1, 20, 1000, 0, 0, -24 };
     check(save("aggressive", b) && save("Calm", kPadifierPresets[2].values), "save two more");
     const std::vector<std::string> names = list();
     check(names.size() == 3 && names[0] == "aggressive" && names[1] == "Bright" && names[2] == "Calm",
@@ -79,6 +90,20 @@ int main()
         if (i != kParamLowCut && i != kParamWidth)
             ok = ok && r[i] == kPadifierRanges[i].def;
     check(ok, "missing keys: default, unknown lines ignored, clamped");
+
+    // a preset of 1.0: "noise" ignored, the colour and the parameters of 1.1 take their defaults
+    std::FILE* const old = openPreset("Old", true);
+    if (old != nullptr)
+    {
+        std::fputs("# Noise Padifier preset\nversion=1\nnoise=0\nlength=4.5\nswell=40\nmix=70\n", old);
+        std::fclose(old);
+    }
+    ok = load("Old", r) && r[kParamLength] == 4.5f && r[kParamSwell] == 40.0f && r[kParamMix] == 70.0f;
+    for (int i = 0; i < kPresetParamCount; ++i)
+        if (i != kParamLength && i != kParamSwell && i != kParamMix)
+            ok = ok && r[i] == kPadifierRanges[i].def;
+    check(ok, "preset of 1.0: read, colour and new parameters at their defaults");
+    erase("Old");
 
     // files that are not presets are not listed
 #ifdef _WIN32

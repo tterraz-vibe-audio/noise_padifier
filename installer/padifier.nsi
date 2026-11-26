@@ -7,7 +7,7 @@ Unicode true
 !include "x64.nsh"
 
 !define NAME     "Noise Padifier"
-!define VERSION  "1.0.1"
+!define VERSION  "1.1.0"
 !define BUNDLE   "noise_padifier"
 !define MANUAL   "Noise-Padifier-manuel.pdf"
 !define MANUAL_EN "Noise-Padifier-manual.pdf"

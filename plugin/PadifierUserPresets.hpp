@@ -40,9 +40,12 @@ namespace PadifierUserPresets {
 
 static const size_t kMaxNameLength = 24;
 
-// file keys of the preset parameters kParamNoise .. kParamOutput (symbols of the parameters)
+// file keys of the preset parameters, by index (symbols of the parameters); the bypass is not
+// saved.  A file of 1.0 has "noise" instead of "colour": ignored, the colour takes its default.
 static const char* const kUserPresetKeys[kPresetParamCount] = {
-    "noise", "length", "swell", "decay", "seed", "lowcut", "highcut", "width", "mix", "output",
+    "colour", "length", "swell", "decay", "seed", "lowcut", "highcut", "width", "mix", "output", nullptr,
+    "density", "tune", "note", "chord", "resonance", "damping", "bloom", "lforate", "lfopitch", "lfotone",
+    "rhythm", "duty", "panrate", "pandepth", "cross", "predelay",
 };
 
 static inline bool validName(const std::string& name)
@@ -235,7 +238,7 @@ static inline bool load(const std::string& name, float values[kPresetParamCount]
         const size_t keyLength = static_cast<size_t>(eq - line);
         for (int i = 0; i < kPresetParamCount; ++i)
         {
-            if (std::strlen(kUserPresetKeys[i]) != keyLength || std::strncmp(line, kUserPresetKeys[i], keyLength) != 0)
+            if (!isPresetParam(i) || std::strlen(kUserPresetKeys[i]) != keyLength || std::strncmp(line, kUserPresetKeys[i], keyLength) != 0)
                 continue;
             std::istringstream in(eq + 1);
             in.imbue(std::locale::classic());
@@ -283,10 +286,11 @@ static inline bool save(const std::string& name, const float values[kPresetParam
     std::FILE* const f = openPreset(name, true);
     if (f == nullptr)
         return false;
-    bool ok = std::fputs("# Noise Padifier preset\nversion=1\n", f) >= 0;
+    bool ok = std::fputs("# Noise Padifier preset\nversion=2\n", f) >= 0;
     for (int i = 0; i < kPresetParamCount; ++i)
     {
-        ok = ok && std::fprintf(f, "%s=%s\n", kUserPresetKeys[i], number(values[i]).c_str()) > 0;
+        if (isPresetParam(i))
+            ok = ok && std::fprintf(f, "%s=%s\n", kUserPresetKeys[i], number(values[i]).c_str()) > 0;
     }
     return std::fclose(f) == 0 && ok;
 }

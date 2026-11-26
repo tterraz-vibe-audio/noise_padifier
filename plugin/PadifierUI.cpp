@@ -4,12 +4,13 @@
  * Copyright (C) 2026 Padifier authors
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Everything is drawn in a logical 900 x 600 space, scaled to the window size (resizable,
- * aspect ratio kept).  Three sections, left to right in the order of the signal:
- *   1 NOISE (white or pink, seed) -> 2 ENVELOPE (length, swell, decay)
- *   -> 3 OUTPUT (mix, width, output, low cut, high cut, meters),
- * and below, the envelope of the impulse response against time and the spectrum of the pad
- * (colour of the noise and the two filters).
+ * Everything is drawn in a logical 1200 x 760 space, scaled to the window size (resizable,
+ * aspect ratio kept).  Five sections, left to right in the order of the signal:
+ *   1 SOURCE (colour, density, seed) -> 2 TUNE (off / comb / chord, note, chord, resonance,
+ *   vibrato) -> 3 ENVELOPE (length, swell, decay, damping, bloom) -> 4 MOTION (LFO, rhythm,
+ *   stereo motion, cross) -> 5 OUTPUT (mix, output, filters, pre-delay, width),
+ * and below, a time-frequency map of the response (an image, made again only when the
+ * response or the theme changes), the spectrum of the pad and the meters.
  * Knobs: drag vertically (Shift = fine), mouse wheel, double-click or Ctrl+click = default,
  * right-click = type a value (Enter / Escape).  Every control has a tooltip.
  * A / B: two sets of settings to compare (header: A | B, copy to the other); the inactive one is
@@ -42,8 +43,8 @@ START_NAMESPACE_DISTRHO
 
 using DGL_NAMESPACE::Color;
 
-static const float kW = 900.0f;
-static const float kH = 600.0f;
+static const float kW = 1200.0f;
+static const float kH = 760.0f;
 static const float kPi = 3.14159265358979f;
 static const float kArcStart = 0.75f * kPi;
 static const float kArcSweep = 1.5f * kPi;
@@ -134,15 +135,19 @@ struct Rect {
 };
 
 // sections
-static const Rect kSecIn    = { 20, 70, 220, 380 };    // 1 NOISE
-static const Rect kSecEnv   = { 250, 70, 370, 380 };   // 2 ENVELOPE
-static const Rect kSecOut   = { 630, 70, 250, 380 };   // 3 OUTPUT
-static const Rect kBottom   = { 20, 460, 860, 128 };
-static const Rect kEnvPlot  = { 150, 472, 380, 96 };   // envelope against time
-static const Rect kTonePlot = { 586, 472, 264, 96 };   // spectrum of the pad
+static const Rect kSecSource = { 20, 70, 180, 400 };    // 1 SOURCE
+static const Rect kSecTune   = { 210, 70, 200, 400 };   // 2 TUNE
+static const Rect kSecEnv    = { 420, 70, 320, 400 };   // 3 ENVELOPE
+static const Rect kSecMotion = { 750, 70, 230, 400 };   // 4 MOTION
+static const Rect kSecOut    = { 990, 70, 190, 400 };   // 5 OUTPUT
+static const Rect kBottom    = { 20, 480, 1160, 268 };
+static const Rect kMap       = { 150, 494, 620, 222 };  // time-frequency map of the response
+static const Rect kTonePlot  = { 830, 494, 320, 104 };  // spectrum of the pad
 
-enum { kKnobSeed = 0, kKnobLength, kKnobSwell, kKnobDecay, kKnobMix, kKnobWidth, kKnobOutput, kKnobLowCut,
-       kKnobHighCut, kNumKnobs };
+enum { kKnobColour = 0, kKnobDensity, kKnobSeed, kKnobNote, kKnobChord, kKnobResonance, kKnobLfoPitch, kKnobLength,
+       kKnobSwell, kKnobDecay, kKnobDamping, kKnobBloom, kKnobLfoRate, kKnobLfoTone, kKnobRhythm, kKnobDuty,
+       kKnobPanRate, kKnobPanDepth, kKnobCross, kKnobMix, kKnobOutput, kKnobLowCut, kKnobHighCut, kKnobPredelay,
+       kKnobWidth, kNumKnobs };
 
 struct KnobDef {
     int param;
@@ -152,38 +157,79 @@ struct KnobDef {
 };
 
 static const KnobDef kKnobs[kNumKnobs] = {
-    { kParamSeed,     130.0f, 300.0f, 44.0f, "SEED",
-      "Draw of the noise: each value gives another noise of the same colour, another grain of the "
+    { kParamColour,    110.0f, 165.0f, 33.0f, "COLOUR",
+      "Spectral slope of the noise, dB per octave: -6 brown (dark), -3 pink (warm, the usual choice "
+      "for pads), 0 white (bright, airy), +3 blue, +6 violet." },
+    { kParamDensity,    65.0f, 305.0f, 24.0f, "DENSITY",
+      "Impulses per second of sparse (velvet) noise: low values give a cloud of distinct grains or "
+      "echoes, high values a smooth noise. At the maximum: smooth Gaussian noise." },
+    { kParamSeed,      155.0f, 305.0f, 24.0f, "SEED",
+      "Draw of the noise: each value gives another noise of the same kind, another grain of the "
       "pad. The same seed always gives the same response." },
-    { kParamLength,   320.0f, 165.0f, 40.0f, "LENGTH",
+    { kParamNote,      265.0f, 190.0f, 24.0f, "NOTE",
+      "Note of the comb (COMB) or root of the chord (CHORD): the pad is tuned to it." },
+    { kParamChord,     355.0f, 190.0f, 24.0f, "CHORD",
+      "Kind of chord (CHORD): one comb on each of its notes." },
+    { kParamResonance, 265.0f, 305.0f, 24.0f, "RESONANCE",
+      "Ring time of the combs, 20 ms to 5 s: low, a light tint; high, a clearly pitched pad." },
+    { kParamLfoPitch,  355.0f, 305.0f, 24.0f, "VIBRATO",
+      "Depth of the LFO on the note of the combs, in semitones (rate: LFO RATE). It runs along the "
+      "response, from the attack of each sound." },
+    { kParamLength,    480.0f, 165.0f, 33.0f, "LENGTH",
       "Length of the impulse response: how long every sound is smeared. Long: a slow pad; short: "
       "a smear that thickens the sound. A change rebuilds the response, crossfaded in." },
-    { kParamSwell,    435.0f, 165.0f, 40.0f, "SWELL",
+    { kParamSwell,     580.0f, 165.0f, 33.0f, "SWELL",
       "Rise of the envelope, in % of the length: the pad fades in and peaks at that time. 0: at "
       "once; 100 %: rises over the whole length (reverse swell)." },
-    { kParamDecay,    550.0f, 165.0f, 40.0f, "DECAY",
+    { kParamDecay,     680.0f, 165.0f, 33.0f, "DECAY",
       "Level of the envelope at the end, after the peak (a straight line in dB). 0 dB: flat, a "
       "held pad; -60 dB: dies away like a reverb." },
-    { kParamMix,      670.0f, 150.0f, 22.0f, "MIX",
+    { kParamDamping,   530.0f, 305.0f, 24.0f, "DAMPING",
+      "The highs die sooner: extra loss at the end, in dB per octave above 250 Hz, as in a reverb." },
+    { kParamBloom,     630.0f, 305.0f, 24.0f, "BLOOM",
+      "The peak moves with frequency: positive, the highs peak later (the pad opens up); "
+      "negative, the lows peak later (it warms up)." },
+    { kParamLfoRate,   795.0f, 150.0f, 22.0f, "LFO RATE",
+      "Rate of the LFO along the response (vibrato of the combs, tone). It starts again at the "
+      "attack of each sound." },
+    { kParamLfoTone,   865.0f, 150.0f, 22.0f, "LFO TONE",
+      "Depth of the LFO on the colour: the pad gets brighter and darker, in dB per octave." },
+    { kParamRhythm,    795.0f, 265.0f, 22.0f, "RHYTHM",
+      "Gate along the response, on the tempo of the host: the pad pulses at this division from "
+      "the attack of each sound. Short duty: separate bursts, like echoes." },
+    { kParamDuty,      865.0f, 265.0f, 22.0f, "DUTY",
+      "Open part of each period of the gate." },
+    { kParamPanRate,   795.0f, 380.0f, 22.0f, "PAN RATE",
+      "Rate of the stereo motion along the response." },
+    { kParamPanDepth,  865.0f, 380.0f, 22.0f, "PAN DEPTH",
+      "Depth of the stereo motion: the pad swings between left and right." },
+    { kParamCross,     935.0f, 380.0f, 22.0f, "CROSS",
+      "True stereo: each input also reaches the other side through its own noise. 0: none (half "
+      "the computation); 100 %: as much as the direct path." },
+    { kParamMix,      1040.0f, 150.0f, 22.0f, "MIX",
       "Dry / pad, equal power (pad sin, dry cos of 90 degrees x mix). At 100 %: pad only (for a "
       "send)." },
-    { kParamWidth,    755.0f, 150.0f, 22.0f, "WIDTH",
-      "Stereo width of the pad: 0 % mono, 100 % as made (independent noises left and right), "
-      "200 % side doubled." },
-    { kParamOutput,   840.0f, 150.0f, 22.0f, "OUTPUT",
+    { kParamOutput,   1130.0f, 150.0f, 22.0f, "OUTPUT",
       "Gain of the whole output, dry and pad." },
-    { kParamLowCut,   712.0f, 268.0f, 22.0f, "LOW CUT",
-      "High-pass on the pad only (12 dB / octave): pink noise carries a lot of low end. At the "
-      "minimum: off." },
-    { kParamHighCut,  798.0f, 268.0f, 22.0f, "HIGH CUT",
+    { kParamLowCut,   1040.0f, 265.0f, 22.0f, "LOW CUT",
+      "High-pass on the pad only (12 dB / octave): pink and brown noise carry a lot of low end. "
+      "At the minimum: off." },
+    { kParamHighCut,  1130.0f, 265.0f, 22.0f, "HIGH CUT",
       "Low-pass on the pad only (12 dB / octave): a darker, softer pad. At the maximum: off." },
+    { kParamPredelay, 1040.0f, 380.0f, 22.0f, "PRE-DELAY",
+      "Delay of the pad: it starts later than the dry sound. A change crossfades in 30 ms." },
+    { kParamWidth,    1130.0f, 380.0f, 22.0f, "WIDTH",
+      "Stereo width of the pad: 0 % mono, 100 % as made, 200 % side doubled." },
 };
 
-static const Rect kNoise   = { 45, 124, 170, 32 };     // WHITE | PINK
-static const Rect kInfo    = { 270, 312, 330, 128 };   // readout of the envelope
-static const Rect kPreset  = { 384, 16, 196, 26 };     // drop-down box; the list opens below it
-static const Rect kAB      = { 588, 17, 50, 24 };      // A | B
-static const Rect kCopy    = { 642, 17, 34, 24 };      // copy the current set to the other
+static const Rect kTune     = { 222, 104, 176, 28 };   // OFF | COMB | CHORD
+static const Rect kTuneInfo = { 222, 380, 176, 70 };   // readout of the tuning
+static const Rect kEnvInfo  = { 440, 380, 280, 76 };   // readout of the envelope
+static const Rect kLfoInfo  = { 905, 125, 70, 50 };    // period of the LFO
+static const Rect kRhyInfo  = { 905, 240, 70, 50 };    // length of the division
+static const Rect kPreset  = { 640, 16, 220, 26 };     // drop-down box; the list opens below it
+static const Rect kAB      = { 870, 17, 50, 24 };      // A | B
+static const Rect kCopy    = { 924, 17, 34, 24 };      // copy the current set to the other
 static const float kMenuItemH = 22.0f;     // preset list: item
 static const float kMenuHeaderH = 20.0f;   // section title (FACTORY, USER)
 static const float kMenuDividerH = 9.0f;   // line before "Save current settings..."
@@ -196,17 +242,17 @@ struct MenuRow {
     int index;    // factory preset, saved preset (in fUserNames) or section (0 factory, 1 user)
     float y, h;   // y from the top of the list content
 };
-static const Rect kTheme   = { 684, 17, 76, 24 };
-static const Rect kBypass  = { 768, 14, 108, 30 };
+static const Rect kTheme   = { 966, 17, 90, 24 };
+static const Rect kBypass  = { 1066, 14, 114, 30 };
 
-// meters: three horizontal bars in the output section
-static const float kMeterX = 690.0f, kMeterW = 132.0f, kMeterH = 9.0f;
-static const float kMeterY[3] = { 384.0f, 404.0f, 424.0f };   // IN, PAD, OUT
+// meters: three horizontal bars in the bottom panel, under the spectrum
+static const float kMeterX = 880.0f, kMeterW = 220.0f, kMeterH = 9.0f;
+static const float kMeterY[3] = { 650.0f, 672.0f, 694.0f };   // IN, PAD, OUT
 
 // hover zones with a tooltip (knobs are handled separately)
 enum {
-    kZoneNoise = 0, kZoneInfo, kZoneEnvPlot, kZoneTonePlot, kZonePreset, kZoneBypass, kZoneTheme, kZoneAB,
-    kZoneCopy, kZoneIn, kZoneWet, kZoneOut, kNumZones
+    kZoneTune = 0, kZoneTuneInfo, kZoneEnvInfo, kZoneLfoInfo, kZoneRhyInfo, kZoneMap, kZoneTonePlot, kZonePreset,
+    kZoneBypass, kZoneTheme, kZoneAB, kZoneCopy, kZoneIn, kZoneWet, kZoneOut, kNumZones
 };
 
 struct Zone {
@@ -216,16 +262,20 @@ struct Zone {
 };
 
 static const Zone kZones[kNumZones] = {
-    { kNoise, "NOISE",
-      "Colour of the noise convolved with the input. WHITE: flat spectrum, bright and airy. PINK: "
-      "-3 dB per octave from 20 Hz, warm and full (the usual choice for pads)." },
-    { kInfo, "IMPULSE RESPONSE",
-      "The response is noise under this envelope, a different noise left and right, scaled to "
-      "unit energy: a broadband input keeps its level in the pad. Latency 256 samples, reported to "
-      "the host." },
-    { kEnvPlot, "ENVELOPE",
-      "Level of the impulse response against time (dB): rise (Swell), then a straight line in dB "
-      "down to the Decay level at the end of Length. Dashed: the peak." },
+    { kTune, "TUNE",
+      "OFF: noise only. COMB: a comb filter on the noise, tuned to NOTE: the pad takes its harmonic "
+      "series. CHORD: one comb on each note of the chord." },
+    { kTuneInfo, "TUNING", "Frequency of the note and ring time of the combs." },
+    { kEnvInfo, "IMPULSE RESPONSE",
+      "The response is noise under this envelope, a different noise for each path, scaled to unit "
+      "energy: a broadband input keeps its level in the pad. Latency 256 samples, reported to the "
+      "host." },
+    { kLfoInfo, "LFO", "Period of the LFO, along the response." },
+    { kRhyInfo, "RHYTHM", "Length of the division at the tempo of the host (120 BPM when it gives none)." },
+    { kMap, "TIME-FREQUENCY MAP",
+      "Level of the response against time (left to right, 0 to Length) and frequency (bottom to "
+      "top, 20 Hz to 20 kHz): envelope, swell and decay, damping, bloom, LFO on the tone and gate. "
+      "Lines: notes of the combs with their vibrato. Colour of the noise: see the spectrum." },
     { kTonePlot, "SPECTRUM OF THE PAD",
       "Colour of the noise and the Low cut and High cut filters (dB, highest point at 0 dB)." },
     { kPreset, "PRESETS",
@@ -291,8 +341,8 @@ protected:
             return;   // keep the meters of the screenshot
 #endif
         fValues[index] = value;
-        if (index < static_cast<uint32_t>(kParamFirstOutput))
-            repaint();
+        if (index < static_cast<uint32_t>(kParamFirstOutput) || index == kParamTempo)
+            repaint();   // the tempo changes the map of the rhythm
         else
             fMetersChanged = true;
     }
@@ -367,8 +417,10 @@ protected:
 
         drawBackground();
         drawHeader();
-        drawInputSection();
+        drawSourceSection();
+        drawTuneSection();
         drawEnvelopeSection();
+        drawMotionSection();
         drawOutputSection();
         drawPlots();
         if (fMenuOpen)
@@ -434,7 +486,7 @@ protected:
         if (kCopy.contains(x, y)) { copySlot(); return true; }
         if (kBypass.contains(x, y)) { toggle(kParamBypass); return true; }
         if (kTheme.contains(x, y)) { setTheme(static_cast<int>(segmentAt(kTheme, x, PadifierPrefs::kThemeCount))); return true; }
-        if (kNoise.contains(x, y)) { setOnce(kParamNoise, segmentAt(kNoise, x, 2)); return true; }
+        if (kTune.contains(x, y)) { setOnce(kParamTune, segmentAt(kTune, x, 3)); return true; }
 
         if (k < 0)
             return false;
@@ -629,9 +681,18 @@ private:
 
     static float defaultValue(const int p) { return kPadifierRanges[p].def; }
 
-    static bool logarithmic(const int p) { return p == kParamLength || p == kParamLowCut || p == kParamHighCut; }
+    static bool logarithmic(const int p)
+    {
+        return p == kParamLength || p == kParamLowCut || p == kParamHighCut || p == kParamDensity || p == kParamLfoRate
+            || p == kParamPanRate;
+    }
 
-    // knob position: length and filters logarithmic, the others linear
+    static bool whole(const int p)
+    {
+        return p == kParamSeed || p == kParamNote || p == kParamChord || p == kParamRhythm || p == kParamTune;
+    }
+
+    // knob position: length, density, rates and filters logarithmic, the others linear
     static float toNorm(const int p, const float v)
     {
         const PadifierRange& r = kPadifierRanges[p];
@@ -640,7 +701,7 @@ private:
         return (v - r.min) / (r.max - r.min);
     }
 
-    // seed and noise: whole numbers
+    // seed, note and lists: whole numbers
     static float fromNorm(const int p, float n)
     {
         const PadifierRange& r = kPadifierRanges[p];
@@ -648,7 +709,7 @@ private:
         if (logarithmic(p))
             return r.min * std::pow(r.max / r.min, n);
         const float v = r.min + n * (r.max - r.min);
-        return p == kParamSeed || p == kParamNoise ? std::round(v) : v;
+        return whole(p) ? std::round(v) : v;
     }
 
     static float clampValue(const int p, const float v)
@@ -779,6 +840,8 @@ private:
     {
         for (int i = 0; i < kPresetParamCount; ++i)
         {
+            if (!isPresetParam(i))
+                continue;
             setOnce(i, values[i]);
             fPresetValues[i] = values[i];
         }
@@ -1011,7 +1074,7 @@ private:
     bool presetModified() const
     {
         for (int i = 0; i < kPresetParamCount; ++i)
-            if (std::fabs(fValues[i] - fPresetValues[i]) > 1e-4f)
+            if (isPresetParam(i) && std::fabs(fValues[i] - fPresetValues[i]) > 1e-4f)
                 return true;
         return false;
     }
@@ -1027,7 +1090,7 @@ private:
             if (end != fEditText && std::isfinite(v))
             {
                 const int p = kKnobs[fEdit].param;
-                setOnce(p, p == kParamSeed ? std::round(clampValue(p, v)) : clampValue(p, v));
+                setOnce(p, whole(p) ? std::round(clampValue(p, v)) : clampValue(p, v));
             }
         }
         fEdit = -1;
@@ -1050,16 +1113,16 @@ private:
     {
         const float v = fValues[p];
         const char* fmt = "%.0f";
-        if (p == kParamLength)
+        if (p == kParamLength || p == kParamLfoRate || p == kParamPanRate || p == kParamLfoPitch)
             fmt = "%.2f";
-        else if (p == kParamDecay || p == kParamOutput)
+        else if (p == kParamDecay || p == kParamOutput || p == kParamColour || p == kParamDamping || p == kParamLfoTone)
             fmt = "%.1f";
         std::snprintf(buf, size, fmt, v);
     }
 
     PadifierIR::Settings irSettings() const
     {
-        return PadifierIR::fromParams(fValues, sampleRate());
+        return PadifierIR::fromParams(fValues, sampleRate(), fValues[kParamTempo]);
     }
 
     static void frequencyText(const double hz, char* buf, const size_t size)
@@ -1078,17 +1141,50 @@ private:
             std::snprintf(buf, size, "%.2f s", t);
     }
 
+    static const char* colourName(const float v)
+    {
+        return v <= -5.0f ? "brown" : v <= -2.0f ? "pink" : v < 1.0f ? "white" : v < 4.5f ? "blue" : "violet";
+    }
+
     // short text under a knob; detail: the longer form of the tooltip title
     void valueText(const int p, char* buf, const size_t size, const bool detail) const
     {
         const float v = fValues[p];
-        char f[24];
+        char f[32];
         switch (p)
         {
+        case kParamColour:
+            std::snprintf(buf, size, detail ? "%+.1f dB/octave (%s)" : "%+.1f dB/oct", v, colourName(v));
+            break;
+        case kParamDensity:
+            if (v >= kDensitySmooth)
+                std::snprintf(buf, size, "smooth");
+            else
+                std::snprintf(buf, size, detail ? "%.0f impulses / s" : "%.0f /s", v);
+            break;
+        case kParamSeed:  std::snprintf(buf, size, "%d", PadifierLaw::seed(v)); break;
+        case kParamNote:
+            PadifierLaw::noteName(static_cast<int>(std::lround(v)), f, sizeof(f));
+            if (detail)
+                std::snprintf(buf, size, "%s (%.1f Hz)", f, PadifierLaw::noteHz(std::lround(v)));
+            else
+                std::snprintf(buf, size, "%s", f);
+            break;
+        case kParamChord: std::snprintf(buf, size, "%s", kChords[PadifierLaw::choice(v, kChordCount)].name); break;
+        case kParamResonance:
+            secondsText(PadifierLaw::ringSeconds(v), f, sizeof(f));
+            std::snprintf(buf, size, detail ? "%.0f %% (ring %s)" : "%.0f %%", v, f);
+            break;
+        case kParamLfoPitch:
+            if (v <= 0.0f)
+                std::snprintf(buf, size, "off");
+            else
+                std::snprintf(buf, size, detail ? "+-%.2f semitones" : "%.2f st", v);
+            break;
         case kParamLength:
             secondsText(v, f, sizeof(f));
             if (detail)
-                std::snprintf(buf, size, "%s (%d samples per channel)", f, PadifierIR::lengthSamples(irSettings()));
+                std::snprintf(buf, size, "%s (%d samples per path)", f, PadifierIR::lengthSamples(irSettings()));
             else
                 std::snprintf(buf, size, "%s", f);
             break;
@@ -1097,7 +1193,37 @@ private:
             std::snprintf(buf, size, detail ? "%.0f %% (peak at %s)" : "%.0f %%", v, f);
             break;
         case kParamDecay: std::snprintf(buf, size, detail ? "%.1f dB at the end" : "%.0f dB", v); break;
-        case kParamSeed:  std::snprintf(buf, size, "%d", PadifierLaw::seed(v)); break;
+        case kParamDamping:
+            if (v <= 0.0f)
+                std::snprintf(buf, size, "off");
+            else
+                std::snprintf(buf, size, detail ? "%.1f dB/octave above 250 Hz" : "%.1f dB/oct", v);
+            break;
+        case kParamBloom:
+            if (v == 0.0f)
+                std::snprintf(buf, size, "off");
+            else
+                std::snprintf(buf, size, detail ? "%+.0f %% (%s later)" : "%+.0f %%", v, v > 0.0f ? "highs" : "lows");
+            break;
+        case kParamLfoRate:
+            std::snprintf(buf, size, detail ? "%.2f Hz (period %.2f s)" : "%.2f Hz", v, 1.0 / v);
+            break;
+        case kParamLfoTone:
+            if (v <= 0.0f)
+                std::snprintf(buf, size, "off");
+            else
+                std::snprintf(buf, size, detail ? "+-%.1f dB/octave" : "%.1f dB/oct", v);
+            break;
+        case kParamRhythm: std::snprintf(buf, size, "%s", kDivisions[PadifierLaw::choice(v, kDivisionCount)].name); break;
+        case kParamPanRate: std::snprintf(buf, size, "%.2f Hz", v); break;
+        case kParamPanDepth:
+        case kParamCross:
+            if (v <= 0.0f)
+                std::snprintf(buf, size, "off");
+            else
+                std::snprintf(buf, size, "%.0f %%", v);
+            break;
+        case kParamPredelay: std::snprintf(buf, size, "%.0f ms", v); break;
         case kParamLowCut:
             if (v <= kLowCutOff + 0.05f)
                 std::snprintf(buf, size, "off");
@@ -1117,9 +1243,27 @@ private:
             else
                 std::snprintf(buf, size, "%.0f %%", v);
             break;
+        case kParamDuty:
         case kParamWidth:  std::snprintf(buf, size, "%.0f %%", v); break;
         case kParamOutput: std::snprintf(buf, size, "%+.1f dB", v); break;
         default:           std::snprintf(buf, size, "%.2f", v); break;
+        }
+    }
+
+    // knobs without effect with the other settings: drawn faint
+    bool knobActive(const int k) const
+    {
+        const int tune = PadifierLaw::choice(fValues[kParamTune], 3);
+        switch (kKnobs[k].param)
+        {
+        case kParamNote:
+        case kParamResonance:
+        case kParamLfoPitch: return tune > 0;
+        case kParamChord:    return tune == 2;
+        case kParamLfoRate:  return (tune > 0 && fValues[kParamLfoPitch] > 0.0f) || fValues[kParamLfoTone] > 0.0f;
+        case kParamDuty:     return PadifierLaw::choice(fValues[kParamRhythm], kDivisionCount) > 0;
+        case kParamPanRate:  return fValues[kParamPanDepth] > 0.0f;
+        default:             return true;
         }
     }
 
@@ -1274,12 +1418,14 @@ private:
         fillPaint(radialGradient(kW * 0.5f, kH + 80, 40, 560, fT->bgGlow, transparent(fT->bgGlow)));
         fill();
 
-        panel(kSecIn);
-        panel(kSecEnv);
-        panel(kSecOut);
+        const Rect* const sections[5] = { &kSecSource, &kSecTune, &kSecEnv, &kSecMotion, &kSecOut };
+        for (int i = 0; i < 5; ++i)
+        {
+            panel(*sections[i]);
+            if (i < 4)
+                flowArrow(sections[i]->x + sections[i]->w + 5, sections[i]->y + sections[i]->h * 0.5f);
+        }
         panel(kBottom);
-        flowArrow(kSecIn.x + kSecIn.w + 5, kSecIn.y + kSecIn.h * 0.5f);
-        flowArrow(kSecEnv.x + kSecEnv.w + 5, kSecEnv.y + kSecEnv.h * 0.5f);
     }
 
     void drawHeader()
@@ -1352,62 +1498,136 @@ private:
               ALIGN_CENTER | ALIGN_MIDDLE, bypassed ? "BYPASSED" : "ACTIVE", 1.8f);
     }
 
-    void drawInputSection()
+    void drawSourceSection()
     {
-        sectionTitle(kSecIn, "1", "NOISE", "convolved with");
-        const char* const names[2] = { "WHITE", "PINK" };
-        const bool pink = PadifierLaw::pink(fValues[kParamNoise]);
-        segmented(kNoise, names, 2, pink ? 1 : 0, 11);
-        const float cx = kSecIn.x + kSecIn.w * 0.5f;
-        label(cx, 176, 10, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE,
-              pink ? "-3 dB per octave: warm, full" : "flat spectrum: bright, airy", 0.3f);
-        // a small sketch of the spectrum, 20 Hz .. 20 kHz
-        const float x0 = cx - 60, x1 = cx + 60, y0 = 196, y1 = 214;
-        beginPath();
-        moveTo(x0, pink ? y0 : 0.5f * (y0 + y1));
-        lineTo(x1, pink ? y1 : 0.5f * (y0 + y1));
-        lineCap(ROUND);
-        strokeWidth(2.0f);
-        strokeColor(fT->hot);
-        stroke();
-        label(x0 - 6, y1 + 1, 8, fT->faint, ALIGN_RIGHT | ALIGN_MIDDLE, "20");
-        label(x1 + 6, y1 + 1, 8, fT->faint, ALIGN_LEFT | ALIGN_MIDDLE, "20k");
-        divider(kSecIn.x + 12, kSecIn.x + kSecIn.w - 12, 230);
+        const Rect& r = kSecSource;
+        sectionTitle(r, "1", "SOURCE", "noise");
+        drawKnob(kKnobColour);
+        divider(r.x + 12, r.x + r.w - 12, 258);
+        drawKnob(kKnobDensity);
         drawKnob(kKnobSeed);
+    }
+
+    void drawTuneSection()
+    {
+        const Rect& r = kSecTune;
+        sectionTitle(r, "2", "TUNE", "combs on the noise");
+        const char* const names[3] = { "OFF", "COMB", "CHORD" };
+        const int tune = PadifierLaw::choice(fValues[kParamTune], 3);
+        segmented(kTune, names, 3, tune, 10);
+        for (int k = kKnobNote; k <= kKnobLfoPitch; ++k)
+            drawKnob(k);
+        divider(r.x + 12, r.x + r.w - 12, 370);
+        const float cx = r.x + r.w * 0.5f;
+        char a[64], b[96];
+        if (tune == 0)
+        {
+            label(cx, 405, 10, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, "noise only", 0.5f);
+            return;
+        }
+        const int note = static_cast<int>(std::lround(fValues[kParamNote]));
+        PadifierLaw::noteName(note, a, sizeof(a));
+        if (tune == 1)
+            std::snprintf(b, sizeof(b), "%s  %.1f Hz", a, PadifierLaw::noteHz(note));
+        else
+        {
+            const PadifierChord& c = kChords[PadifierLaw::choice(fValues[kParamChord], kChordCount)];
+            std::string list;
+            for (int i = 0; i < c.count; ++i)
+            {
+                PadifierLaw::noteName(note + c.steps[i], a, sizeof(a));
+                list += (i ? " " : "") + std::string(a);
+            }
+            std::snprintf(b, sizeof(b), "%s", list.c_str());
+        }
+        label(cx, 398, 13, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.8f);
+        secondsText(PadifierLaw::ringSeconds(fValues[kParamResonance]), a, sizeof(a));
+        std::snprintf(b, sizeof(b), "ring %s", a);
+        label(cx, 424, 9.5f, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.3f);
     }
 
     void drawEnvelopeSection()
     {
-        sectionTitle(kSecEnv, "2", "ENVELOPE", "of the impulse response");
-        drawKnob(kKnobLength);
-        drawKnob(kKnobSwell);
-        drawKnob(kKnobDecay);
-        divider(kSecEnv.x + 12, kSecEnv.x + kSecEnv.w - 12, 300);
+        const Rect& r = kSecEnv;
+        sectionTitle(r, "3", "ENVELOPE", "of the impulse response");
+        for (int k = kKnobLength; k <= kKnobBloom; ++k)
+            drawKnob(k);
+        divider(r.x + 12, r.x + r.w - 12, 370);
 
         const PadifierIR::Settings st = irSettings();
-        const float cx = kSecEnv.x + kSecEnv.w * 0.5f;
-        char a[32], b[96];
-        label(cx, 330, 9.5f, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, "PEAK OF THE ENVELOPE", 1.2f);
+        const float cx = r.x + r.w * 0.5f;
+        char a[32], b[128];
+        label(cx, 388, 9.5f, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, "PEAK OF THE ENVELOPE", 1.2f);
         secondsText(st.swell * st.length, a, sizeof(a));
-        label(cx, 358, 22, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, a, 1);
+        if (st.bloom != 0.0)
+        {
+            char lo[32], hi[32];
+            secondsText(PadifierIR::peakTime(st, 125.0), lo, sizeof(lo));
+            secondsText(PadifierIR::peakTime(st, 8000.0), hi, sizeof(hi));
+            std::snprintf(b, sizeof(b), "%s   (125 Hz %s, 8 kHz %s)", a, lo, hi);
+            label(cx, 410, 15, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.5f);
+        }
+        else
+            label(cx, 410, 20, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, a, 1);
         secondsText(st.length, a, sizeof(a));
-        std::snprintf(b, sizeof(b), "end at %s, %.0f dB", a, st.decayDb);
-        label(cx, 386, 10, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.5f);
-        std::snprintf(b, sizeof(b), "%d samples per channel  |  latency %.1f ms", PadifierIR::lengthSamples(st),
+        if (st.damping > 0.0)
+            std::snprintf(b, sizeof(b), "end at %s, %.0f dB (%.0f dB at 8 kHz)", a, st.decayDb, PadifierIR::endDb(st, 8000.0));
+        else
+            std::snprintf(b, sizeof(b), "end at %s, %.0f dB", a, st.decayDb);
+        label(cx, 432, 10, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.5f);
+        std::snprintf(b, sizeof(b), "%d samples per path  |  latency %.1f ms", PadifierIR::lengthSamples(st),
                       1000.0 * PadifierConv::kHeadBlock / sampleRate());
-        label(cx, 408, 9.5f, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.3f);
+        label(cx, 451, 9.5f, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b, 0.3f);
+    }
+
+    void drawMotionSection()
+    {
+        const Rect& r = kSecMotion;
+        sectionTitle(r, "4", "MOTION", "along the response");
+        for (int k = kKnobLfoRate; k <= kKnobCross; ++k)
+            drawKnob(k);
+        divider(r.x + 12, r.x + r.w - 12, 222);
+        divider(r.x + 12, r.x + r.w - 12, 337);
+        char b[48];
+        const float cx = kLfoInfo.x + kLfoInfo.w * 0.5f;
+        label(cx, 140, 9, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, "PERIOD", 1);
+        secondsText(1.0 / fValues[kParamLfoRate], b, sizeof(b));
+        label(cx, 158, 11, knobActive(kKnobLfoRate) ? fT->gold : fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b);
+        const int div = PadifierLaw::choice(fValues[kParamRhythm], kDivisionCount);
+        label(cx, 255, 9, fT->dim, ALIGN_CENTER | ALIGN_MIDDLE, "STEP", 1);
+        if (div == 0)
+            label(cx, 273, 11, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, "off");
+        else
+        {
+            secondsText(kDivisions[div].beats * 60.0 / fValues[kParamTempo], b, sizeof(b));
+            label(cx, 273, 11, fT->gold, ALIGN_CENTER | ALIGN_MIDDLE, b);
+            std::snprintf(b, sizeof(b), "%.0f BPM", fValues[kParamTempo]);
+            label(cx, 289, 9, fT->faint, ALIGN_CENTER | ALIGN_MIDDLE, b);
+        }
     }
 
     void drawOutputSection()
     {
-        sectionTitle(kSecOut, "3", "OUTPUT", "mix and tone");
-        for (int k = kKnobMix; k <= kKnobHighCut; ++k)
+        const Rect& r = kSecOut;
+        sectionTitle(r, "5", "OUTPUT", "mix and tone");
+        for (int k = kKnobMix; k <= kKnobWidth; ++k)
             drawKnob(k);
-        divider(kSecOut.x + 12, kSecOut.x + kSecOut.w - 12, 360);
-        drawMeters();
+        divider(r.x + 12, r.x + r.w - 12, 222);
+        divider(r.x + 12, r.x + r.w - 12, 337);
     }
 
+    // faint while it has no effect with the other settings
     void drawKnob(const int i)
+    {
+        const bool active = knobActive(i);
+        if (!active)
+            globalAlpha(0.35f);
+        drawKnobBody(i);
+        if (!active)
+            globalAlpha(1.0f);
+    }
+
+    void drawKnobBody(const int i)
     {
         const KnobDef& k = kKnobs[i];
         const int p = k.param;
@@ -1541,7 +1761,7 @@ private:
     // spectrum of the pad, dB (not normalised): colour of the noise, low cut, high cut
     double toneDb(const double hz) const
     {
-        double db = PadifierLaw::pink(fValues[kParamNoise]) ? -10.0 * std::log10(std::fmax(hz, 20.0) / 1000.0) : 0.0;
+        double db = fValues[kParamColour] * std::log2(std::fmax(hz, 20.0) / 1000.0);
         const float lc = fValues[kParamLowCut], hc = fValues[kParamHighCut];
         if (lc > kLowCutOff)
         {
@@ -1577,16 +1797,6 @@ private:
         label(kBottom.x + 32, y, 9.5f, fT->dim, ALIGN_LEFT | ALIGN_MIDDLE, text, 0.3f);
     }
 
-    void drawPlots()
-    {
-        label(kBottom.x + 12, kBottom.y + 16, 10, fT->text, ALIGN_LEFT | ALIGN_MIDDLE, "IMPULSE", 1);
-        label(kBottom.x + 12, kBottom.y + 30, 10, fT->text, ALIGN_LEFT | ALIGN_MIDDLE, "RESPONSE", 1);
-        legendLine(kBottom.y + 56, fT->gold, false, "envelope (dB)");
-        legendLine(kBottom.y + 74, fT->tone, false, "spectrum (dB)");
-        drawEnvelopePlot();
-        drawTonePlot();
-    }
-
     void plotFrame(const Rect& r)
     {
         beginPath();
@@ -1595,98 +1805,165 @@ private:
         fill();
     }
 
-    void drawEnvelopePlot()
+    // colour of a level of the map, 0 (-48 dB or less) .. 1 (0 dB)
+    Color mapColour(const float u) const
     {
-        const Rect& r = kEnvPlot;
-        const PadifierIR::Settings st = irSettings();
-        const double L = st.length;
-        const auto px = [&](const double t) { return r.x + r.w * static_cast<float>(t / L); };
-        const auto py = [&](const double db) {
-            return r.y + r.h * static_cast<float>(std::fmin(std::fmax(-db / 60.0, 0.0), 1.0));
-        };
-        plotFrame(r);
+        const Color* const c[4] = { &fT->plot, &fT->deep, &fT->hot, &fT->gold };
+        const float x = std::fmin(std::fmax(u, 0.0f), 1.0f) * 3.0f;
+        const int i = std::min(2, static_cast<int>(x));
+        return Color(*c[i], *c[i + 1], x - i);
+    }
 
-        // grid: time, 20 dB
+    static float mapFrequency(const float yFraction)   // 0 top .. 1 bottom
+    {
+        return 20.0f * std::pow(1000.0f, 1.0f - yFraction);
+    }
+
+    // the image of the map, made again when the response or the theme changes
+    void updateMap()
+    {
+        const PadifierIR::Settings st = irSettings();
+        if (fMap.isValid() && fMapTheme == fTheme && st == fMapSettings)
+            return;
+        fMapSettings = st;
+        fMapTheme = fTheme;
+        const bool spectral = PadifierIR::spectralEnvelope(st);
+        std::vector<unsigned char> rgba(static_cast<size_t>(kMapW) * kMapH * 4);
+        for (int x = 0; x < kMapW; ++x)
+        {
+            const double t = (x + 0.5) / kMapW * st.length;
+            const double common = (spectral ? PadifierIR::endFade(st, t) : PadifierIR::envelope(st, t)) * PadifierIR::gate(st, t);
+            for (int y = 0; y < kMapH; ++y)
+            {
+                double g = common;
+                if (spectral && g > 0.0)
+                    g *= PadifierIR::spectralGain(st, mapFrequency((y + 0.5f) / kMapH), t);
+                const float u = g > 1e-6 ? static_cast<float>((20.0 * std::log10(g) + 48.0) / 48.0) : 0.0f;
+                const Color c = mapColour(u);
+                unsigned char* const px = &rgba[(static_cast<size_t>(y) * kMapW + x) * 4];
+                px[0] = static_cast<unsigned char>(std::lround(c.red * 255.0f));
+                px[1] = static_cast<unsigned char>(std::lround(c.green * 255.0f));
+                px[2] = static_cast<unsigned char>(std::lround(c.blue * 255.0f));
+                px[3] = 255;
+            }
+        }
+        if (fMap.isValid())
+            fMap.update(rgba.data());
+        else
+            fMap = createImageFromRGBA(kMapW, kMapH, rgba.data(), 0);
+    }
+
+    void drawPlots()
+    {
+        label(kBottom.x + 12, kBottom.y + 18, 10, fT->text, ALIGN_LEFT | ALIGN_MIDDLE, "IMPULSE", 1);
+        label(kBottom.x + 12, kBottom.y + 32, 10, fT->text, ALIGN_LEFT | ALIGN_MIDDLE, "RESPONSE", 1);
+        // scale of the map
+        const float bx = kBottom.x + 14, by = kBottom.y + 56, bh = 90;
+        beginPath();
+        rect(bx, by, 10, bh);
+        fillPaint(linearGradient(0, by, 0, by + bh * 0.34f, mapColour(1.0f), mapColour(0.66f)));
+        fill();
+        beginPath();
+        rect(bx, by + bh * 0.33f, 10, bh * 0.67f);
+        fillPaint(linearGradient(0, by + bh * 0.33f, 0, by + bh, mapColour(0.66f), mapColour(0.0f)));
+        fill();
+        for (int d = 0; d <= 48; d += 16)
+        {
+            char b[8];
+            std::snprintf(b, sizeof(b), "%d", -d);
+            label(bx + 16, by + bh * d / 48.0f, 8, fT->faint, ALIGN_LEFT | ALIGN_MIDDLE, b);
+        }
+        label(bx + 44, by + bh * 0.5f, 8, fT->faint, ALIGN_LEFT | ALIGN_MIDDLE, "dB");
+        legendLine(kBottom.y + 172, fT->text, false, "notes (combs)");
+        legendLine(kBottom.y + 190, fT->tone, false, "spectrum (dB)");
+        drawMap();
+        drawTonePlot();
+        drawMeters();
+    }
+
+    void drawMap()
+    {
+        const Rect& r = kMap;
+        const PadifierIR::Settings st = irSettings();
+        updateMap();
+        beginPath();
+        rect(r.x, r.y, r.w, r.h);
+        fillPaint(imagePattern(r.x, r.y, r.w, r.h, 0.0f, fMap, 1.0f));
+        fill();
+
+        // axes: frequency (left), time (below)
+        const auto fy = [&](const double hz) { return r.y + r.h * (1.0f - static_cast<float>(std::log(hz / 20.0) / std::log(1000.0))); };
+        strokeWidth(1.0f);
+        beginPath();
+        for (const double hz : { 100.0, 1000.0, 10000.0 })
+        {
+            moveTo(r.x, fy(hz) + 0.5f);
+            lineTo(r.x + r.w, fy(hz) + 0.5f);
+        }
+        strokeColor(fT->grid);
+        stroke();
+        const char* const fnames[3] = { "100", "1k", "10k" };
+        const double fvals[3] = { 100.0, 1000.0, 10000.0 };
+        for (int j = 0; j < 3; ++j)
+            label(r.x - 5, fy(fvals[j]), 8, fT->faint, ALIGN_RIGHT | ALIGN_MIDDLE, fnames[j]);
+        label(r.x - 5, r.y + 4, 8, fT->faint, ALIGN_RIGHT | ALIGN_MIDDLE, "Hz");
+        const double L = st.length;
         double step = 0.05;
         for (const double c : { 0.05, 0.1, 0.25, 0.5, 1.0, 2.0 })
-            if (L / c <= 6.0)
+            if (L / c <= 8.0)
             {
                 step = c;
                 break;
             }
-        strokeWidth(1.0f);
-        beginPath();
-        for (double t = step; t < L - 1e-9; t += step)
-        {
-            moveTo(px(t) + 0.5f, r.y);
-            lineTo(px(t) + 0.5f, r.y + r.h);
-        }
-        for (int d = 20; d < 60; d += 20)
-        {
-            moveTo(r.x, py(-d) + 0.5f);
-            lineTo(r.x + r.w, py(-d) + 0.5f);
-        }
-        strokeColor(fT->grid);
-        stroke();
         for (double t = 0.0; t <= L + 1e-9; t += step)
         {
             char b[16];
             std::snprintf(b, sizeof(b), "%g", std::round(t * 100.0) / 100.0);
-            label(px(t), r.y + r.h + 8, 8, fT->faint, t == 0.0 ? ALIGN_LEFT | ALIGN_MIDDLE : ALIGN_CENTER | ALIGN_MIDDLE, b);
+            label(r.x + r.w * static_cast<float>(t / L), r.y + r.h + 8, 8, fT->faint,
+                  t == 0.0 ? ALIGN_LEFT | ALIGN_MIDDLE : ALIGN_CENTER | ALIGN_MIDDLE, b);
         }
-        label(r.x + r.w, r.y + r.h + 8, 8, fT->faint, ALIGN_RIGHT | ALIGN_MIDDLE, "s");
-        for (int d = 0; d <= 60; d += 20)
-        {
-            char b[8];
-            std::snprintf(b, sizeof(b), "%d", -d);
-            label(r.x - 5, py(-d), 8, Color(fT->gold, fT->faint, 0.4f), ALIGN_RIGHT | ALIGN_MIDDLE, b);
-        }
+        label(r.x + r.w, r.y + r.h + 18, 8, fT->faint, ALIGN_RIGHT | ALIGN_MIDDLE, "s");
 
-        save();
-        scissor(r.x, r.y - 2, r.w, r.h + 4);
-        const int n = 240;
-        const auto env = [&](const int j) {
-            const double t = L * j / n;
-            const double e = PadifierIR::envelope(st, std::fmin(t, L * (1.0 - 1e-9)));
-            return e > 1e-6 ? 20.0 * std::log10(e) : -120.0;
-        };
-        // filled area, then the curve with its glow
-        beginPath();
-        moveTo(r.x, r.y + r.h);
-        for (int j = 0; j <= n; ++j)
-            lineTo(px(L * j / n), py(env(j)));
-        lineTo(r.x + r.w, r.y + r.h);
-        closePath();
-        fillPaint(linearGradient(0, r.y, 0, r.y + r.h, fT->curveGlow, transparent(fT->curveGlow)));
-        fill();
-        for (int pass = 0; pass < 2; ++pass)
+        // notes of the combs (comb: harmonics; chord: the notes and two harmonics)
+        const std::vector<double> f0 = PadifierIR::notes(st);
+        if (!f0.empty())
         {
+            save();
+            scissor(r.x, r.y, r.w, r.h);
+            const int harmonics = st.tune == 1 ? 24 : 3;
+            for (const double f : f0)
+                for (int k = 1; k <= harmonics && k * f < 20000.0; ++k)
+                {
+                    beginPath();
+                    for (int j = 0; j <= 80; ++j)
+                    {
+                        const double t = L * j / 80.0;
+                        const double hz = k * f * std::exp2(st.lfoPitch * PadifierIR::lfo(st, t) / 12.0);
+                        if (j == 0)
+                            moveTo(r.x, fy(hz));
+                        else
+                            lineTo(r.x + r.w * j / 80.0f, fy(hz));
+                    }
+                    strokeWidth(k == 1 ? 1.4f : 1.0f);
+                    strokeColor(Color(fT->text, transparent(fT->text), k == 1 ? 0.25f : 0.65f));
+                    stroke();
+                }
+            restore();
+        }
+        // peak of the envelope (dashed), without bloom
+        if (st.bloom == 0.0)
+        {
+            const float xp = r.x + r.w * static_cast<float>(st.swell);
             beginPath();
-            for (int j = 0; j <= n; ++j)
+            for (float yy = r.y; yy < r.y + r.h; yy += 6.0f)
             {
-                if (j == 0)
-                    moveTo(px(0.0), py(env(0)));
-                else
-                    lineTo(px(L * j / n), py(env(j)));
+                moveTo(xp, yy);
+                lineTo(xp, yy + 3.0f);
             }
-            lineCap(ROUND);
-            lineJoin(ROUND);
-            strokeWidth(pass == 0 ? 7.0f : 2.2f);
-            strokeColor(pass == 0 ? fT->curveGlow : fT->gold);
+            strokeWidth(1.0f);
+            strokeColor(Color(fT->text, transparent(fT->text), 0.5f));
             stroke();
         }
-        // peak (dashed)
-        const float xp = px(st.swell * L);
-        beginPath();
-        for (float yy = r.y; yy < r.y + r.h; yy += 6.0f)
-        {
-            moveTo(xp, yy);
-            lineTo(xp, yy + 3.0f);
-        }
-        strokeWidth(1.2f);
-        strokeColor(fT->hot);
-        stroke();
-        restore();
     }
 
     void drawTonePlot()
@@ -1963,6 +2240,11 @@ private:
     // ------------------------------------------------------------------ state
 
     float fValues[kParamCount];
+    // time-frequency map of the response: image, and what it was made for
+    static const int kMapW = 200, kMapH = 72;
+    NanoImage fMap;
+    PadifierIR::Settings fMapSettings;
+    int fMapTheme = -1;
     int fTheme = PadifierPrefs::kThemeDusk;
     const Theme* fT = &kThemes[PadifierPrefs::kThemeDusk];
     FontId fFont = 0;

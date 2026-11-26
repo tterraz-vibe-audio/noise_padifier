@@ -17,13 +17,17 @@ done
 mkdir -p build
 DPF_INC="-Iplugin -Idpf/distrho -Idpf/dgl -DDISTRHO_PLUGIN_TARGET_EXPORT -DDISTRHO_IS_STANDALONE=0"
 BENCH_ARG=${BENCH:+--bench}
-echo "== DSP tests, strict floating point"
+echo "== Impulse response and DSP tests, strict floating point"
 gcc -O2 -c plugin/pffft/pffft.c -o build/pffft.o
+g++ -O2 -std=gnu++17 -Iplugin tests/test_ir.cpp build/pffft.o -o build/test_ir -lpthread
+./build/test_ir $BENCH_ARG
 g++ -O2 -std=gnu++17 $DPF_INC tests/test_dsp.cpp build/pffft.o -o build/test_dsp -lpthread
 ./build/test_dsp $BENCH_ARG
-echo "== DSP tests, options of the plugin (DPF: -O3 -ffast-math)"
+echo "== Impulse response and DSP tests, options of the plugin (DPF: -O3 -ffast-math)"
 FAST="-O3 -ffast-math -mtune=generic -msse -msse2 -mfpmath=sse"
 gcc $FAST -c plugin/pffft/pffft.c -o build/pffft_fast.o
+g++ $FAST -std=gnu++17 -Iplugin tests/test_ir.cpp build/pffft_fast.o -o build/test_ir_fast -lpthread
+./build/test_ir_fast
 g++ $FAST -std=gnu++17 $DPF_INC tests/test_dsp.cpp build/pffft_fast.o -o build/test_dsp_fast -lpthread
 ./build/test_dsp_fast $BENCH_ARG
 echo "== Preferences tests (in an empty temporary home)"
