@@ -1,0 +1,1 @@
+pffft de Julien Pommier, https://bitbucket.org/jpommier/pffft, commit 67a4a6a113179ab4ac398298f46fce8dd60498dc (2026-10-16), fichiers non modifies. Licence : celle de FFTPACK (BSD), en tete de pffft.c.
