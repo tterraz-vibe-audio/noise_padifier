@@ -1,7 +1,7 @@
 # Noise Padifier - améliorations
 
-Statut : 1.1.0 publiée (release `v1.1.0`, 2026-11-26) ; **1.2.0 prête, non publiée** (§ « 1.2.0 »
-en fin de fichier). Restent les pistes non faites de `LISEZMOI.md`. Tout ajout qui change la
+Statut : **1.2.0 publiée** (release `v1.2.0`, 2026-11-26, § « 1.2.0 » en fin de fichier ; 1.1.0 :
+release `v1.1.0`). Restent les pistes non faites de `LISEZMOI.md`. Tout ajout qui change la
 sortie demande une nouvelle version.
 
 Principe commun : un traitement du bruit modifie la réponse impulsionnelle ; il est calculé à la
@@ -85,7 +85,7 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
 - **Publié** : commit `4247136`, étiquette et release GitHub `v1.1.0` (installateur, archives
   Windows et Linux, deux manuels).
 
-## 1.2.0 (session 70, 2026-11-26 ; non publiée)
+## 1.2.0 (session 70, 2026-11-26 ; publiée, commit `4e938ba`, release `v1.2.0`)
 - Porte rythmique : montée sin² Attack, palier jusqu'à Duty, descente cos² Release (en % du pas,
   ≥ 1 ms ; une descente peut déborder sur le pas suivant) ; Attack, Duty, Release en faders ;
   Chord et Rhythm en listes déroulantes (commit `ca5ef86`).

@@ -160,12 +160,12 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
 - Captures (depuis la 1.1.0) : ajouter `-DPADIFIER_UI_DEMO_PRESET=<n>` ; chercher la fenêtre par sa taille
   (`grep 1200x760`), sinon `import` peut prendre l'écran entier ; atelier du validateur
   `build/vst3val`, préfixe Wine `build/wineprefix` (dans `build/`, non suivi).
-- **1.2.0 prête, non publiée** (session 70, 2026-11-26) : porte rythmique Attack/Release et listes
-  (commit `ca5ef86`), puis Decay en %, Length 30 s, convolution à trois étages, Pearl opalescent,
-  version 1.2.0 (getVersion, installateur, manuels, README), figures, captures et manuels refaits.
-  Reste : commit, puis release `v1.2.0` par la même procédure (installateur à essayer sous Wine dans
-  un préfixe neuf, binaires publiés au validateur) ; préréglages à réécouter (Decay converti à la
-  lecture des lois).
+- **Release `v1.2.0`** (session 70, 2026-11-26, commit `4e938ba`) : porte rythmique Attack/Release
+  et listes (`ca5ef86`), Decay en %, Length 30 s, convolution à trois étages, Pearl opalescent.
+  Même procédure ; fichiers dans `build/release/1.2.0/`, notes `build/release/notes-1.2.0.md` ;
+  installateur testé sous Wine (préfixe neuf `build/wine_inst120` : fichiers identiques, version
+  1.2.0 au registre, raccourcis, tout retiré), validateur 47/47 Linux et Windows sur les binaires
+  publiés. Préréglages à réécouter (Decay converti à la lecture des lois).
 - Captures : `tools/capture_ui.sh EXE OUT.png` (attend la fenêtre visible, ne garde que une image de
   1200x760 : Wine crée d'abord une fenêtre temporaire de même nom, d'où des captures de l'écran
   entier). Manuels : Dusk = `-DPADIFIER_UI_DEMO=-1 -DPADIFIER_UI_DEMO_THEME=0
