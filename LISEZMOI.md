@@ -5,7 +5,9 @@ rose sous une enveloppe** (réponse impulsionnelle de 0,1 à 10 s) ; tout son es
 C++ avec DPF, interface NanoVG, structure reprise de Tinplate et Brimstone.
 Formats : VST3 et CLAP pour Windows 64 bits ; VST3, CLAP et LV2 pour Linux.
 **Licence : GPL 3 ou ultérieure** (`COPYING`) ; FFT : pffft de Julien Pommier (licence de
-FFTPACK, type BSD, `plugin/pffft/`, provenance dans `PROVENANCE.txt`) ; DPF sous ISC.
+FFTPACK, type BSD, `plugin/pffft/`, provenance dans `PROVENANCE.txt`) ; DPF sous ISC. Notices des
+composants tiers contenus dans les binaires (pffft, DPF, NanoVG, pugl, en-têtes CLAP, police DejaVu
+Sans) : `THIRD_PARTY_LICENSES.txt`, installé et joint à chaque archive de release.
 Nom provisoire (essais : Mica, Graphene ; changer : `DistrhoPluginInfo.h`, `Makefile`,
 installateur, préférences, en-tête de l'interface).
 
@@ -107,17 +109,27 @@ réécrits en NumPy ; convolutions par FFT NumPy). **README.md** en anglais pour
   appliqué sans clic, Low cut (-40 dB), High cut (-43 dB), Width 0 (L = R), 8 préréglages finis
   (crête 0,59 pour du bruit à -12 dBFS), état du FPU rendu.
 - `tests/test_prefs.cpp`, `tests/test_user_presets.cpp`.
-- Validateur VST3 de Steinberg (`tools/validate_vst3.sh`) : 47/47 sur le VST3 Linux (VST3 Windows
-  non passé au validateur).
+- Validateur VST3 de Steinberg (`tools/validate_vst3.sh`) : 47/47 sur le VST3 Linux et sur le VST3
+  Windows (sous Wine ; le script passe `-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY`, sans quoi
+  `-municode` fait échouer le test du compilateur de CMake avec le MinGW de cette machine).
+- Installateur (NSIS) : installation et désinstallation silencieuses (`/S`) sous Wine dans un
+  préfixe neuf : VST3 identique à `bin/windows/`, CLAP, manuel identique à `doc/manuel.pdf`,
+  licences, raccourci du menu Démarrer, entrée du registre, puis tout retiré.
 - Interface affichée par la version autonome Windows sous Wine, deux thèmes (`doc/captures/`).
-- **Non vérifié** : écoute ; validateur sur le VST3 Windows ; vrai logiciel audio ; clics et saisie dans un hôte ; installateur sur
+- **Non vérifié** : écoute ; vrai logiciel audio ; clics et saisie dans un hôte ; installateur sur
   un vrai Windows.
 
 ## Pour reprendre
 - Dossier créé en session 69 (2026-11-26) à côté de `tinplate_vst3/`, dont il reprend la
   structure. Manuel et README faits. Dépôt git : `master`, distant `origin` =
-  `git@github.com:tterraz/noise_padifier.git` (public, comme Tinplate). Pas encore de release GitHub
-  (procédure : celle de `../tinplate_vst3/LISEZMOI.md`, § « Pour reprendre »).
+  `git@github.com:tterraz/noise_padifier.git` (public, comme Tinplate).
+- **Release GitHub** `v1.0.0` (2026-11-26) : `./build.sh` complet sur `master` propre ; fichiers
+  assemblés dans `build/release/` (non suivi) : installateur, `Noise-Padifier-1.0.0-windows.zip`
+  (VST3, CLAP), `Noise-Padifier-1.0.0-linux-x86_64.tar.gz` (VST3, CLAP, LV2), chacun avec
+  `COPYING`, `THIRD_PARTY_LICENSES.txt` et le manuel, et le manuel seul ; notes en anglais
+  (`build/release/notes.md`) ; étiquette annotée `v1.0.0` poussée, puis `/usr/bin/gh release create`.
+  **La version 1.0.0 est publiée** : tout changement livré ensuite demande un nouveau numéro
+  (`getVersion`, installateur, documents).
 - Captures : `CXXFLAGS="-DPADIFIER_UI_DEMO=<zone> -DPADIFIER_UI_DEMO_THEME=<0|1>"`, version
   autonome (`make -C plugin jack BUILD_DIR_SUFFIX=-demo-<x> DPF_TARGET_DIR=../build-demo-<x>/bin`
   avec les variables MinGW de `build.sh`) sous Wine, `import -window` sur la fenêtre « Noise

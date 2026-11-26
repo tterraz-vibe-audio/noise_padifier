@@ -79,5 +79,7 @@ filters, width, presets, meters, FPU state). Also `tests/test_prefs.cpp` and
 
 ## Licence
 
-GPL-3.0-or-later (`COPYING`). DPF is ISC-licensed. `plugin/pffft/` holds the unmodified pffft by
-Julien Pommier (FFTPACK licence, BSD-like; see the head of `pffft.c` and `PROVENANCE.txt`).
+GPL-3.0-or-later (`COPYING`). `plugin/pffft/` holds the unmodified pffft by Julien Pommier
+(FFTPACK licence, BSD-like; `PROVENANCE.txt`). The binaries also contain DPF (ISC), NanoVG (zlib),
+pugl (ISC), the CLAP headers (MIT) and the DejaVu Sans font: their notices are in
+`THIRD_PARTY_LICENSES.txt`, shipped with every download.
