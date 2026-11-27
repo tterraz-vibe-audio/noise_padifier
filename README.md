@@ -32,6 +32,7 @@ noise can be coloured, tuned, shaped in time and frequency and moved in stereo.
   response (envelope, damping, bloom, notes of the combs with their vibrato), the spectrum of
   the pad and meters; knobs without effect are drawn faint.
 - **Presets**: 13 factory presets and your own (save, replace, delete), shared by all projects.
+- **RANDOM** button: draws every setting at random (Bypass kept).
 - **A/B comparison** saved with the project; dark (Dusk) and light, opalescent (Pearl) themes; tooltips
   everywhere; keyboard entry of values (right-click a knob); resizable HiDPI interface.
 - Bypass declared to the host (delayed dry signal: constant latency), smoothed controls, no

@@ -93,6 +93,10 @@ opalescent en 1.2 : surfaces lilas laiteux, reflet lavande → pêche et lueur t
 champs `sheen0-2` du thème, transparents pour Dusk), carte et vu-mètres nacre → lilas → violet →
 pêche rosée (`map1-3`, valeurs de Dusk inchangées), accent vieux rose au lieu de l'ocre).
 Code : `plugin/PadifierUI.cpp`, `PadifierPrefs.hpp`, `PadifierUserPresets.hpp`.
+**RANDOM** (en-tête, entre thème et Bypass, comme dans Brimstone ; session 75) : `randomize` tire
+tous les réglages d'un préréglage (Bypass gardé) uniformément sur la course du bouton (`fromNorm` :
+logarithmique pour Length, Density, filtres, vitesses), Tune, Chord, Seed, Note et phases en
+entiers ; préréglage affiché « Random » ; `std::mt19937` semé par `std::random_device`.
 
 ## Compiler
 `./build.sh` (Linux, MinGW-w64 `-posix`, git ; `BENCH=1` : coût du DSP en plus) :
@@ -195,6 +199,9 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   VST3, CLAP et manuel identiques, version 1.3.0 au registre, raccourcis, tout retiré), validateur
   47/47 Linux et Windows sur les binaires publiés. Tout changement livré ensuite demande un
   nouveau numéro.
+- Depuis la 1.3.0 (non publié) : bouton RANDOM (session 75) ; en-tête vu sous Wine, tirage non
+  essayé au clic ; bulle d'aide : zone 113 (`-DPADIFIER_UI_DEMO=113`, mais la bulle suit la vraie
+  souris) ; captures de `doc/captures/` à refaire à la prochaine release (nouvel en-tête).
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).
 - Ouvert depuis la 1.3.0 (non traité, à proposer si l'écoute le demande) : au réglage d'un LFO de

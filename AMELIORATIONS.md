@@ -99,6 +99,15 @@ fixe sur le bruit équivaut exactement au même filtre sur la sortie.
 - Vérifié : tests des réponses et du DSP (deux compilations), `./build.sh` complet sans
   avertissement, validateur 47/47 Linux et Windows, manuels FR/EN de 18 pages sans avertissement.
 
+## Après la 1.3.0 (non publié)
+- **Bouton RANDOM** (session 75, 2026-11-27 ; demande de l'utilisateur : « le même » que dans
+  Brimstone) : dans l'en-tête, entre la pastille de thème et Bypass (préréglages, A/B, copie et
+  thème décalés de 64 points à gauche). Tire au hasard tous les réglages d'un préréglage (Bypass
+  gardé ; rien de l'en-tête) : valeurs continues uniformes sur la **course du bouton** (échelle
+  logarithmique pour Length, Density, filtres et vitesses, comme à la souris) ; Tune, Chord, Seed,
+  Note et phases : une valeur entière au hasard. Préréglage affiché « Random ». Interface seule.
+  Prochaine release : nouveau numéro.
+
 ## 1.3.0 (session 74, 2026-11-26 ; publiée, release `v1.3.0`)
 - **Porte rythmique retirée** (décision de l'utilisateur : pas utile en pratique ; aucun projet
   n'emploie les releases, pas de compatibilité) : paramètres Rhythm, Duty, Attack, Release et

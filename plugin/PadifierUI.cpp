@@ -22,6 +22,7 @@
  * settings...", name typed in the box; delete with the cross of a saved preset, clicked twice).
  * Two themes, Dusk (dark) and Pearl (light), switched by the DUSK | PEARL pill of the header; the
  * choice is a preference of the user (PadifierPrefs.hpp), not saved with the project.
+ * RANDOM (header, by Bypass): draws every setting of a preset at random (Bypass kept).
  */
 
 #include "DistrhoUI.hpp"
@@ -37,6 +38,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <locale>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -280,9 +282,9 @@ static Rect phaseRect(const int i)
 }
 static const Rect kTuneInfo = { 222, 396, 176, 70 };   // readout of the tuning
 static const Rect kEnvInfo  = { 440, 380, 280, 76 };   // readout of the envelope
-static const Rect kPreset  = { 640, 16, 220, 26 };     // drop-down box; the list opens below it
-static const Rect kAB      = { 870, 17, 50, 24 };      // A | B
-static const Rect kCopy    = { 924, 17, 34, 24 };      // copy the current set to the other
+static const Rect kPreset  = { 576, 16, 220, 26 };     // drop-down box; the list opens below it
+static const Rect kAB      = { 804, 17, 50, 24 };      // A | B
+static const Rect kCopy    = { 858, 17, 34, 24 };      // copy the current set to the other
 static const float kMenuItemH = 22.0f;     // preset list: item
 static const float kMenuHeaderH = 20.0f;   // section title (FACTORY, USER)
 static const float kMenuDividerH = 9.0f;   // line before "Save current settings..."
@@ -295,7 +297,8 @@ struct MenuRow {
     int index;    // factory preset, saved preset (in fUserNames) or section (0 factory, 1 user)
     float y, h;   // y from the top of the list content
 };
-static const Rect kTheme   = { 966, 17, 90, 24 };
+static const Rect kTheme   = { 900, 17, 90, 24 };
+static const Rect kRandom  = { 998, 17, 60, 24 };      // every preset setting drawn at random
 static const Rect kBypass  = { 1066, 14, 114, 30 };
 
 // meters: three horizontal bars in the bottom panel, under the spectrum
@@ -305,7 +308,7 @@ static const float kMeterY[3] = { 650.0f, 672.0f, 694.0f };   // IN, PAD, OUT
 // hover zones with a tooltip (knobs are handled separately)
 enum {
     kZoneTune = 0, kZoneTuneInfo, kZoneEnvInfo, kZoneMap, kZoneTonePlot, kZonePreset,
-    kZoneBypass, kZoneTheme, kZoneAB, kZoneCopy, kZoneIn, kZoneWet, kZoneOut, kNumZones
+    kZoneBypass, kZoneTheme, kZoneAB, kZoneCopy, kZoneIn, kZoneWet, kZoneOut, kZoneRandom, kNumZones
 };
 
 struct Zone {
@@ -346,6 +349,10 @@ static const Zone kZones[kNumZones] = {
     { { kMeterX - 46, kMeterY[1] - 7, kMeterW + 100, 16 }, "PAD",
       "Peak level of the pad alone (after the filters and width, before the mix), dBFS." },
     { { kMeterX - 46, kMeterY[2] - 7, kMeterW + 100, 16 }, "OUT", "Output peak level, dBFS." },
+    { kRandom, "RANDOM",
+      "Draws every setting at random over the travel of its knob (lists, seed, note and phases: one "
+      "of their values); Bypass is kept. Output may come out high. To come back, copy to the other "
+      "set (A>B) first." },
 };
 
 static const int kHoverZoneBase = 100;
@@ -574,6 +581,7 @@ protected:
         if (kPreset.contains(x, y)) { openMenu(); return true; }
         if (kAB.contains(x, y)) { switchSlot(static_cast<int>(segmentAt(kAB, x, 2))); return true; }
         if (kCopy.contains(x, y)) { copySlot(); return true; }
+        if (kRandom.contains(x, y)) { randomize(); return true; }
         if (kBypass.contains(x, y)) { toggle(kParamBypass); return true; }
         if (kTheme.contains(x, y)) { setTheme(static_cast<int>(segmentAt(kTheme, x, PadifierPrefs::kThemeCount))); return true; }
         if (kTune.contains(x, y)) { setOnce(kParamTune, segmentAt(kTune, x, 3)); return true; }
@@ -981,6 +989,33 @@ private:
             fPresetValues[i] = values[i];
         }
         repaint();
+    }
+
+    // RANDOM: every preset setting drawn uniformly over the travel of its knob (logarithmic ones
+    // too); whole values (lists, seed, note, phases): one of them; shown as the preset "Random"
+    void randomize()
+    {
+        float values[kPresetParamCount];
+        for (int i = 0; i < kPresetParamCount; ++i)
+        {
+            const PadifierRange& r = kPadifierRanges[i];
+            if (!isPresetParam(i))
+                values[i] = fValues[i];
+            else if (whole(i) || (i >= kParamPhasePitch && i <= kParamPhaseHighCut))
+            {
+                std::uniform_int_distribution<int> pick(static_cast<int>(r.min), static_cast<int>(r.max));
+                values[i] = static_cast<float>(pick(fRandom));
+            }
+            else
+            {
+                std::uniform_real_distribution<float> draw(0.0f, 1.0f);
+                values[i] = clampValue(i, fromNorm(i, draw(fRandom)));
+            }
+        }
+        loadValues(values);
+        fPreset = -1;
+        fPresetUser = false;
+        fPresetName = "Random";
     }
 
     void applyPreset(const int index)
@@ -1757,6 +1792,9 @@ private:
 
         // theme
         segmented(kTheme, kThemeNames, PadifierPrefs::kThemeCount, fTheme, 9);
+
+        // random: a one-shot button (no state)
+        button(kRandom, false, "RANDOM", 9);
 
         // bypass
         const bool bypassed = fValues[kParamBypass] > 0.5f;
@@ -2655,6 +2693,7 @@ private:
     // meters: repainted at most 30 times per second
     bool fMetersChanged = false;
     std::chrono::steady_clock::time_point fLastPaint;
+    std::mt19937 fRandom { std::random_device{}() };
 #ifdef PADIFIER_UI_DEMO_PRESET
     bool fDemoPresetDone = false;
 #endif
