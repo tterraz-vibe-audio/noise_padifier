@@ -156,7 +156,8 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
 ## Pour reprendre
 - Dossier créé en session 69 (2026-11-26) à côté de `tinplate_vst3/`, dont il reprend la
   structure. Manuel et README faits. Dépôt git : `master`, distant `origin` =
-  `git@github.com:tterraz/noise_padifier.git` (public, comme Tinplate).
+  `git@github.com:tterraz-vibe-audio/noise_padifier.git` (public, comme Tinplate ; transféré du compte
+  `tterraz` à l'organisation `tterraz-vibe-audio` le 2026-11-27, l'ancienne adresse redirige).
 - **Release GitHub** `v1.0.0` (2026-11-26) : `./build.sh` complet sur `master` propre ; fichiers
   assemblés dans `build/release/` (non suivi) : installateur, `Noise-Padifier-1.0.0-windows.zip`
   (VST3, CLAP), `Noise-Padifier-1.0.0-linux-x86_64.tar.gz` (VST3, CLAP, LV2), chacun avec
