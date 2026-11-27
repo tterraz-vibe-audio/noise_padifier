@@ -4,7 +4,7 @@ Effet « pad » par convolution : chaque canal de l'entrée est convolué avec d
 (couleur, densité, peignes accordés sur une note ou un accord, enveloppe par fréquence, LFO sur
 la note, la couleur, la résonance, la densité et des filtres balayés, avec une phase par cible,
 mouvement stéréo, vraie stéréo croisée ; réponse de 0,1 à 30 s) ; tout son est
-étalé en nappe. Version 1.3.0 (traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
+étalé en nappe. Version 1.4.0 (bouton RANDOM ; traitements du bruit : `AMELIORATIONS.md` ; nouveautés de la 1.2 :
 même fichier, § « 1.2.0 » ; de la 1.3 (porte rythmique retirée, LFO étendu) : § « 1.3.0 »).
 C++ avec DPF, interface NanoVG, structure reprise de Tinplate et Brimstone.
 Formats : VST3 et CLAP pour Windows 64 bits ; VST3, CLAP et LV2 pour Linux.
@@ -158,7 +158,7 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   structure. Manuel et README faits. Dépôt git : `master`, distant `origin` =
   `git@github.com:tterraz-vibe-audio/noise_padifier.git` (public, comme Tinplate ; transféré du compte
   `tterraz` à l'organisation `tterraz-vibe-audio` le 2026-11-27, l'ancienne adresse redirige).
-- Seule la dernière release est gardée sur GitHub, étiquettes gardées (`v1.0.0`…`v1.2.0` supprimées le
+- Seule la dernière release est gardée sur GitHub, étiquettes gardées (`v1.0.0`…`v1.3.0` supprimées le
   2026-11-27).
 - **Release GitHub** `v1.0.0` (2026-11-26) : `./build.sh` complet sur `master` propre ; fichiers
   assemblés dans `build/release/` (non suivi) : installateur, `Noise-Padifier-1.0.0-windows.zip`
@@ -202,9 +202,16 @@ réécrits en NumPy ; convolutions par FFT NumPy ; cartes temps-fréquence des t
   VST3, CLAP et manuel identiques, version 1.3.0 au registre, raccourcis, tout retiré), validateur
   47/47 Linux et Windows sur les binaires publiés. Tout changement livré ensuite demande un
   nouveau numéro.
-- Depuis la 1.3.0 (non publié) : bouton RANDOM (session 75) ; en-tête vu sous Wine, tirage non
-  essayé au clic ; bulle d'aide : zone 113 (`-DPADIFIER_UI_DEMO=113`, mais la bulle suit la vraie
-  souris) ; captures de `doc/captures/` à refaire à la prochaine release (nouvel en-tête).
+- **Release `v1.4.0`** (session 77, 2026-11-27) : bouton RANDOM (session 75, `7269044`) ; interface
+  seule (son, paramètres, préréglages de la 1.3.0). Captures `doc/captures/` refaites (versions
+  autonomes `build-demo-d14`, `build-demo-p14`, réglages de capture ci-dessus), manuels de 18 pages
+  sans avertissement. Même procédure ; fichiers dans `build/release/1.4.0/`, notes
+  `build/release/notes-1.4.0.md` ; `./build.sh` sans avertissement, tests passés ; validateur 47/47
+  Linux et Windows ; installateur sous Wine (préfixe neuf `build/wine_inst140` : VST3, CLAP et
+  manuels identiques, `DisplayVersion` 1.4.0 dans `system.reg` (`wine reg query` ne rend rien ici),
+  raccourcis, tout retiré). Release `v1.3.0` supprimée, étiquette gardée. Tirage RANDOM non essayé
+  au clic ; bulle d'aide : zone 113 (`-DPADIFIER_UI_DEMO=113`, la bulle suit la vraie souris).
+  Tout changement livré ensuite demande un nouveau numéro.
 - Pistes non faites : préréglages à l'oreille ; gel (Freeze) ; affichage « réponse en cours de
   calcul » ; LFO calé sur le tempo (choix : le LFO part de l'attaque de chaque son).
 - Ouvert depuis la 1.3.0 (non traité, à proposer si l'écoute le demande) : au réglage d'un LFO de
